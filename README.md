@@ -1,7 +1,7 @@
 # biolearns
 BioLearns: Computational Biology and Bioinformatics Toolbox in Python http://biolearns.com
 
-<div style="text-align:center"><img src="http://biolearns.com/img/logo.png" /></div>
+<div style="text-align:center"><img src="http://biolearns.com/img/logo.png" width=200/></div>
 
 
 ## Installation
