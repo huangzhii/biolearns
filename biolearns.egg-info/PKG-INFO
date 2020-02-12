@@ -1,0 +1,38 @@
+Metadata-Version: 2.1
+Name: biolearns
+Version: 0.0.5
+Summary: BioLearns: Computational Biology and Bioinformatics Toolbox in Python
+Home-page: http://biolearns.com
+Author: Zhi Huang
+Author-email: huang898@purdue.edu
+License: UNKNOWN
+Description: # biolearns
+        BioLearns: Computational Biology and Bioinformatics Toolbox in Python http://biolearns.com
+        
+        ![BioLearns](figures/logo.png)
+        
+        <div style="text-align:center"><img src="figures/construction.png" /></div>
+        
+        
+        ## Installation
+        
+        * From PyPI
+        
+        ```bash
+        pip install biolearns
+        ```
+        
+        
+        * Download Anaconda from https://www.anaconda.com/download/#linux/ with python 3 version.
+        
+        ```bash
+        conda install biolearns
+        ```
+        
+        
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
