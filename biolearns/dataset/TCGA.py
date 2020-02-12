@@ -191,4 +191,28 @@ class TCGACancer():
         print('Done.')
         os.remove(file_downloaded)
         return self.clinical
-
+    
+    def get_overall_survival(self, death_censor = True):
+        if self.clinical is None:
+            _ = self.get_clinical()
+            
+        colname = self.clinical.columns.values.astype(str)
+        
+        days_to_last_followup = clinical[colname[[i for i, d in enumerate(colname) if 'days_to_last_followup' in d]]].values[:,0].astype(float)
+        days_to_death = clinical[colname[[i for i, d in enumerate(colname) if 'days_to_death' in d]]].values[:,0].astype(float)
+        vital_status = clinical[colname[[i for i, d in enumerate(colname) if 'vital_status' in d]]].values[:,0].astype(str)
+        
+        
+        print(np.unique(vital_status))
+        print('Censorship:', ['ALIVE', 'DEAD'][int(death_censor)])
+        e = np.array([v.upper() in ['DEAD','DEATH','DECEASE','DECEASED'] for v in vital_status]).astype(float)
+        e[vital_status == 'nan'] = np.nan
+        t = days_to_last_followup
+        t[np.where(e == 1)] = days_to_death[np.where(e == 1)]
+        if not death_censor:
+            e = 1-e
+        self.overall_survival_time = t
+        self.overall_survival_event = e
+        self.censorship = ['ALIVE', 'DEAD'][int(death_censor)]
+        return self.overall_survival_time, self.overall_survival_event
+            

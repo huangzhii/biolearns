@@ -208,3 +208,8 @@ class lmQCM():
         self.clusters = clusters
         self.clusters_names = clusters_names
         self.eigengene_matrix = eigengene_matrix
+        return self.clusters, self.clusters_names, self.eigengene_matrix
+    
+    
+    
+    
