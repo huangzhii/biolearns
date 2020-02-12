@@ -40,9 +40,7 @@ the TCGA Research Network: https://www.cancer.gov/tcga.
 
 References
 ----------
-.. [1] Lee SY, Song HA, Amari SI. A new discriminant NMF algorithm and its
-       application to the extraction of subtle emotional differences in speech.
-       Cognitive neurodynamics. 2012 Dec 1;6(6):525-35.
+None
        
 Examples
 --------
