@@ -1,5 +1,5 @@
 # Copyright 2020 Zhi Huang.  All rights reserved
-# Created on Mon Feb 10 17:57:08 2020
+# Created on Tue Feb 11 12:29:35 2020
 # Author: Zhi Huang, Purdue University
 #
 #
@@ -17,7 +17,7 @@
 # such damage.
 #
 
-def fastFilter(x, meanq = 0.2, varq = 0.2):
+def expression_filter(x, meanq = 0.2, varq = 0.2):
     '''
     Parameters
     ----------

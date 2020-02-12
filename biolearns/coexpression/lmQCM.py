@@ -58,9 +58,9 @@ References
        bioRxiv. 2019 Jan 1:787507.
 Examples
 -------
->>> data_in = pd.read_csv('~/Desktop/data.csv', index_col = 0) # index: Features (Genes); columns: samples.
->>> lobject = lmQCM(data_in, gamma = 0.55, t = 1, lambdaa = 1, beta = 0.4, 
-              minClusterSize = 2, CCmethod = "pearson", normalization = True)
+>>> tcga_COAD_data = 'http://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/COAD/20160128/gdac.broadinstitute.org_COAD.Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.Level_3.2016012800.0.0.tar.gz'
+>>> data_in = pd.read_csv(tcga_COAD_data, header=0, skiprows=range(1, 2), index_col=0, sep='\t')
+>>> lobject = lmQCM(data_in)
 >>> lobject.fit()
 >>> lobject.clusters
 >>> lobject.clusters_names
@@ -76,7 +76,14 @@ from scipy.stats import spearmanr
 class lmQCM():
     def __init__(self, data_in = None, gamma = 0.55, t = 1, lambdaa = 1, beta = 0.4, 
                      minClusterSize = 10, CCmethod = "pearson", normalization = False):
+        
         self.data_in = data_in
+        if 'DataFrame' not in str(type(self.data_in)):
+            print('Input matrix is numpy matrix. Convert it to pandas.core.frame.DataFrame...')
+            self.data_in = pd.DataFrame(self.data_in)
+        if np.sum(np.isnan(self.data_in.values)) > 0:
+            print('Warning: %d NaN value detected. Replacing them to zero...' % np.sum(np.isnan(self.data_in.values)))
+            self.data_in.fillna(0, inplace = True)
         self.gamma = gamma
         self.t = t
         self.lambdaa = lambdaa
@@ -84,13 +91,15 @@ class lmQCM():
         self.minClusterSize = minClusterSize
         self.CCmethod = CCmethod
         self.normalization = normalization
+        self.calculate_correlation_matrix()
+        print('Initialization Done.')
     
-    def localMaximumQCM(self, cMatrix):
+    def localMaximumQCM(self):
         C = []
-        nRow = cMatrix.shape[0]
-        maxV = np.max(cMatrix, axis = 0)
-        maxInd = np.argmax(cMatrix, axis = 1)
-        lm_ind = np.where(maxV == np.max(cMatrix[maxInd,], axis = 1))[0]
+        nRow = self.corr_mat.shape[0]
+        maxV = np.max(self.corr_mat, axis = 0)
+        maxInd = np.argmax(self.corr_mat, axis = 1)
+        lm_ind = np.where(maxV == np.max(self.corr_mat[maxInd,], axis = 1))[0]
         maxEdges = np.stack((maxInd[lm_ind], lm_ind)).T
         maxW = maxV[lm_ind]
         sortMaxV = np.sort(maxW, kind='mergesort')[::-1] # decreasing
@@ -100,8 +109,10 @@ class lmQCM():
         currentInit = 1
         noNewInit = 0
         
+        pbar = tqdm(total=len(sortMaxInd))
         nodesInCluster = []
         while currentInit <= len(sortMaxInd) and noNewInit == 0:
+            pbar.update(1)
             if sortMaxV[currentInit] < (self.gamma * sortMaxV[1]):
                 noNewInit = 1
             else:
@@ -113,7 +124,7 @@ class lmQCM():
                     totalInd = np.arange(nRow)
                     remainInd = np.setdiff1d(totalInd, newCluster)
                     while addingMode == 1:
-                        neighborWeights = np.sum(cMatrix[newCluster,:][:,remainInd], axis = 0)
+                        neighborWeights = np.sum(self.corr_mat[newCluster,:][:,remainInd], axis = 0)
                         maxNeighborWeight = max(neighborWeights)
                         maxNeighborInd = np.argmax(neighborWeights)
                         c_v = maxNeighborWeight/nCp
@@ -129,6 +140,7 @@ class lmQCM():
                     C = C + [newCluster]
             currentInit += 1
         print(" Calculation Finished.")
+        pbar.close()
         return(C)
         
     def merging_lmQCM(self, C):
@@ -160,18 +172,24 @@ class lmQCM():
         print(" %d Modules remain after merging." % len(mergedCluster))
         return mergedCluster
         
-    def fit(self):
+    def calculate_correlation_matrix(self):
         print("Calculating massive correlation coefficient ...")
-        if self.CCmethod.lower() == "pearson": cMatrix = np.corrcoef(self.data_in)
-        if self.CCmethod.lower() == "spearman": cMatrix = spearmanr(self.data_in.T).correlation
-        np.fill_diagonal(cMatrix, 0)
+        if self.CCmethod.lower() == "pearson": self.corr_mat = np.corrcoef(self.data_in.values)
+        if self.CCmethod.lower() == "spearman": self.corr_mat = spearmanr(self.data_in.values.T).correlation
+        np.fill_diagonal(self.corr_mat, 0)
+        if np.sum(np.isnan(self.corr_mat)) > 0:
+            print('Warning: %d NaN value detected in correlation matrix. Replacing them to zero...' % np.sum(np.isnan(self.corr_mat)))
+            self.corr_mat[np.isnan(self.corr_mat)] = 0
         if self.normalization:
-            cMatrix = np.abs(cMatrix)
-            D = np.sum(cMatrix, axis = 0)
+            self.corr_mat = np.abs(self.corr_mat)
+            D = np.sum(self.corr_mat, axis = 0)
             D_half = 1.0/np.sqrt(D)
-            cMatrix = np.multiply(np.multiply(cMatrix, D_half).T, D_half)
-        C = self.localMaximumQCM(cMatrix)
+            self.corr_mat = np.multiply(np.multiply(self.corr_mat, D_half).T, D_half)
+        
+    def fit(self):
+        C = self.localMaximumQCM()
         clusters = self.merging_lmQCM(C)
+        
         clusters_names = []
         for i in range(len(clusters)):
             mc = clusters[i]
@@ -190,4 +208,3 @@ class lmQCM():
         self.clusters = clusters
         self.clusters_names = clusters_names
         self.eigengene_matrix = eigengene_matrix
-
