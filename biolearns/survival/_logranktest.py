@@ -38,7 +38,7 @@ def logranktest(hazard_ratio, time, event):
     kmf.plot(ax=ax, show_censors = True, ci_show = False, color = 'black')
     kmf.fit(time[groups == 1], event_observed=event[groups == 1], label='Group 2')
     kmf.plot(ax=ax, show_censors = True, ci_show = False, color = 'red')
-    ax.text(0, ax.get_ylim()[0]+0.05, s = '  p-value = %.4e' %p_value, fontsize = 14)
+    ax.text(0, ax.get_ylim()[0]+0.05, s = '  p-value = %.4e' % p_value, fontsize = 14)
     ax.grid(color='grey', linestyle='--', linewidth=0.5)
     ax.set_xlabel('Time')
     ax.set_ylabel('Survival probability')

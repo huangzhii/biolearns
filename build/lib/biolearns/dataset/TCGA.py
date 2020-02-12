@@ -22,6 +22,7 @@ import numpy as np
 import requests
 import sys
 import os
+import re
 
 '''
 Parameters
@@ -40,9 +41,7 @@ the TCGA Research Network: https://www.cancer.gov/tcga.
 
 References
 ----------
-.. [1] Lee SY, Song HA, Amari SI. A new discriminant NMF algorithm and its
-       application to the extraction of subtle emotional differences in speech.
-       Cognitive neurodynamics. 2012 Dec 1;6(6):525-35.
+None
        
 Examples
 --------
@@ -52,9 +51,8 @@ Examples
 
 '''
 
-
 class TCGACancer():
-    def __init__(self, cohort = 'ACC'):
+    def __init__(self, cohort = 'ACC', download = True):
         self.cohort = cohort.upper()
         self.cohortdict = { 'ACC':'Adrenocortical carcinoma',
                             'BLCA':'Bladder urothelial carcinoma',
@@ -94,12 +92,14 @@ class TCGACancer():
                             'UCEC':'Uterine Corpus Endometrial Carcinoma',
                             'UCS':'Uterine Carcinosarcoma',
                             'UVM':'Uveal Melanoma'}
-        self.mRNAseq = None
-        self.miRSeq = None
-        self.mRNA = None
-        self.RPPA = None
-        self.methylation = None
-        self.clinical = None
+        if download:
+            self.mRNAseq = self.get_mRNAseq()
+            self.miRSeq = None
+            self.mRNA = None
+            self.RPPA = None
+            self.methylation = None
+            self.clinical = self.get_clinical()
+            self.overall_survival_time, self.overall_survival_event = self._get_overall_survival(death_censor = True)
         
     def get_mRNAseq(self):
         print('Retrieve mRNAseq from http://firebrowse.org/ ...')
@@ -117,7 +117,7 @@ class TCGACancer():
         file_downloaded = self.cohort + '.mRNAseq.tar.gz'
         if not os.path.exists(file_downloaded):
             with open(file_downloaded, "wb") as f:
-                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
+#                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
                     response = requests.get(link, stream=True)
                     total_length = response.headers.get('content-length')
                     if total_length is None: # no content length header
@@ -140,6 +140,7 @@ class TCGACancer():
         self.mRNAseq = pd.read_csv(file_downloaded, header=0, skiprows=skiprows, index_col=0, sep='\t', low_memory=False)
         self.mRNAseq = self.mRNAseq.loc[['|' in i for i in self.mRNAseq.index.values.astype(str)]] # keep only gene rows
         self.mRNAseq = self.mRNAseq.astype(float)
+        self.mRNAseq.index = [re.split(r"\b\|\b", idx, 1)[0] for idx in self.mRNAseq.index.values.astype(str)]
         print('Done.')
         os.remove(file_downloaded)
         return self.mRNAseq
@@ -158,7 +159,7 @@ class TCGACancer():
         file_downloaded = self.cohort + '.clinical.tar.gz'
         if not os.path.exists(file_downloaded):
             with open(file_downloaded, "wb") as f:
-                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
+#                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
                     response = requests.get(link, stream=True)
                     total_length = response.headers.get('content-length')
                     if total_length is None: # no content length header
@@ -193,4 +194,24 @@ class TCGACancer():
         print('Done.')
         os.remove(file_downloaded)
         return self.clinical
-
+    
+    def _get_overall_survival(self, death_censor = True):
+        if self.clinical is None:
+            _ = self.get_clinical()
+            
+        colname = self.clinical.columns.values.astype(str)
+        
+        days_to_last_followup = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_last_followup' in d]]].values[:,0].astype(float)
+        days_to_death = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_death' in d]]].values[:,0].astype(float)
+        vital_status = self.clinical[colname[[i for i, d in enumerate(colname) if 'vital_status' in d]]].values[:,0].astype(str)
+        
+#        print(np.unique(vital_status))
+        print('Censorship:', ['ALIVE', 'DEAD'][int(death_censor)])
+        e = np.array([v.upper() in ['DEAD','DEATH','DECEASE','DECEASED'] for v in vital_status]).astype(float)
+        e[vital_status == 'nan'] = np.nan
+        t = days_to_last_followup
+        t[np.where(e == 1)] = days_to_death[np.where(e == 1)]
+        if not death_censor:
+            e = 1-e
+        return t, e
+            

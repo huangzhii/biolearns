@@ -13,3 +13,5 @@ biolearns/metrics/__init__.py
 biolearns/metrics/discriminant.py
 biolearns/preprocessing/__init__.py
 biolearns/preprocessing/filter.py
+biolearns/survival/__init__.py
+biolearns/survival/_logranktest.py
