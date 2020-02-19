@@ -102,9 +102,8 @@ def calcuate_Frobenius_norm(X, W, H, square_root=False):
     else:
         return res
 
-def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True):
+def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True, orth_W=False):
     """update W in Multiplicative Update NMF"""
-
     # Numerator
     if XHt is None:
         XHt = safe_sparse_dot(X, H.T)
@@ -115,10 +114,14 @@ def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True):
         # preserve the XHt, which is not re-computed (update_H=False)
         numerator = XHt.copy()
 
-    # Denominator
-    if HHt is None:
-        HHt = np.dot(H, H.T)
-    denominator = np.dot(W, HHt)
+    if not orth_W:
+        # Denominator
+        if HHt is None:
+            HHt = np.dot(H, H.T)
+        denominator = np.dot(W, HHt)
+    else:
+        # ONMF on W
+        denominator = np.dot(np.dot(np.dot(W, H),X.T),W)
     denominator[denominator == 0] = EPSILON
 
     numerator /= denominator
@@ -244,7 +247,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -279,7 +282,7 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
     for n_iter in range(1, max_iter + 1):
         # update W
         # HHt and XHt are saved and reused if not update_H
-        delta_W, HHt, XHt = _multiplicative_update_w(X, W, H, HHt, XHt, update_H = update_H)
+        delta_W, HHt, XHt = _multiplicative_update_w(X, W, H, HHt, XHt, update_H=update_H, orth_W=orth_W)
         W *= delta_W
         
         beta, cph = None, None
