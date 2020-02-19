@@ -22,6 +22,7 @@ import scipy as sp
 import pandas as pd
 from scipy import sparse
 from sklearn.utils import check_random_state, check_array
+from sklearn.decomposition._nmf import _initialize_nmf
 from sklearn.decomposition._cdnmf_fast import _update_cdnmf_fast
 from lifelines.utils import concordance_index
 from ..survival import StepCoxPHFitter
@@ -198,7 +199,7 @@ def _update_coordinate_descent(X, W, Ht, shuffle,
 
 
 
-def NMF(X, W, H, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True, random_state=None, shuffle=False, verbose=0):
+def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True, random_state=None, shuffle=False, verbose=0):
     '''
     Parameters
     ----------
@@ -211,6 +212,8 @@ def NMF(X, W, H, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True, random
     H : array-like, shape (n_components, n_features)
         Initial guess for the solution.
     '''
+    W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
+    
     if solver == 'mu':
         # used for the convergence criterion
         error_at_init = calcuate_Frobenius_norm(X, W, H, square_root=True)
@@ -282,7 +285,7 @@ def NMF(X, W, H, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True, random
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, W, H, t, e, alpha=1, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -304,6 +307,8 @@ def CoxNMF(X, W, H, t, e, alpha=1, solver='mu', update_rule='projection', cph_ma
     alpha : scalar value.
             parameter used for learning the H guided by Cox model.
     '''
+    W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
+        
     # used for the convergence criterion
     error_at_init = calcuate_Frobenius_norm(X, W, H, square_root=True)
     previous_error = error_at_init

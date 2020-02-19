@@ -7,12 +7,12 @@ Created on Wed Feb 12 15:11:25 2020
 """
 
 import numpy as np
-from biolearns.dataset.TCGA import TCGACancer
-from biolearns.coexpression.lmQCM import lmQCM
+from biolearns.dataset import TCGA
+from biolearns.coexpression import lmQCM
 from biolearns.preprocessing.filter import expression_filter
 from biolearns.survival import logranktest
 
-brca = TCGACancer('BRCA')
+brca = TCGA('BRCA')
 mRNAseq = brca.mRNAseq
 clinical = brca.clinical
 

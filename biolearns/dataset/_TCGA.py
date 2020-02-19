@@ -93,7 +93,7 @@ class TCGA():
                             'UCS':'Uterine Carcinosarcoma',
                             'UVM':'Uveal Melanoma'}
         if download:
-#            self.mRNAseq = self.get_mRNAseq()
+            self.mRNAseq = self.get_mRNAseq()
             self.miRSeq = None
             self.mRNA = None
             self.RPPA = None
