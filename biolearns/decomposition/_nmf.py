@@ -179,7 +179,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         previous_error = error_at_init
         
         start_time = time.time()
-        HHt, XHt = None, None, None
+        HHt, XHt = None, None
         for n_iter in range(1, max_iter + 1):
             # update W
             # HHt and XHt are saved and reused if not update_H
@@ -191,7 +191,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
                 delta_H = _multiplicative_update_h(X, W, H)
                 H *= delta_H
                 # These values will be recomputed since H changed
-                HHt, XHt = None, None, None
+                HHt, XHt = None, None
         
             # test convergence criterion every 10 iterations
             if tol > 0 and n_iter % 10 == 0:
@@ -273,7 +273,7 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
     previous_error = error_at_init
     
     start_time = time.time()
-    HHt, XHt = None, None, None
+    HHt, XHt = None, None
     t_geq_matrix = np.array([[int(y >= x) for i,x in enumerate(t)] for j,y in enumerate(t)])
 
     for n_iter in range(1, max_iter + 1):
@@ -313,7 +313,7 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
             H = H_mu + H_partial
             
             # These values will be recomputed since H changed
-            HHt, XHt = None, None, None
+            HHt, XHt = None, None
     
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
         loss_train = np.linalg.norm(X - np.matmul(W, H), ord='fro')
