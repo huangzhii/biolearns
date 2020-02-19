@@ -289,9 +289,12 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
             H_cox['event'] = e
             cph = StepCoxPHFitter()
             cph.max_iterations = cph_max_steps
-            cph.fit(H_cox, duration_col='time', event_col='event', show_progress=False)
+            if not beta:
+                initial_point = None
+            else:
+                initial_point = beta.reshape(-1)
+            cph.fit(H_cox, initial_point = initial_point, duration_col='time', event_col='event', show_progress=False)
             cindex = concordance_index(H_cox['time'], -cph.predict_partial_hazard(H.T), H_cox['event'])
-            
             beta = cph.params_.values.reshape(-1,1)
         # update H
         if update_H:
