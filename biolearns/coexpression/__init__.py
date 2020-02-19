@@ -1,2 +1,2 @@
 # __init__.py
-from .lmQCM import *
+from ._lmQCM import *

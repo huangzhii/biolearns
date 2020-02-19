@@ -1,2 +1,2 @@
 # __init__.py
-from .TCGA import *
+from ._TCGA import *

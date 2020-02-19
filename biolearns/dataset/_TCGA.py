@@ -45,13 +45,13 @@ None
        
 Examples
 --------
->>> brca = TCGACancer('BRCA')
+>>> brca = TCGA('BRCA')
 >>> brca.get_mRNAseq()
 >>> brca.get_clinical()
 
 '''
 
-class TCGACancer():
+class TCGA():
     def __init__(self, cohort = 'ACC', download = True):
         self.cohort = cohort.upper()
         self.cohortdict = { 'ACC':'Adrenocortical carcinoma',
