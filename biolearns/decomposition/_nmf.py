@@ -282,7 +282,7 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
         delta_W, HHt, XHt = _multiplicative_update_w(X, W, H, HHt, XHt, update_H = update_H)
         W *= delta_W
         
-        beta = None
+        beta, cph = None, None
         if update_beta:
             H_cox = pd.DataFrame(H.T)
             H_cox['time'] = t
@@ -316,11 +316,11 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
             HHt, XHt = None, None
     
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
-        loss_train = np.linalg.norm(X - np.matmul(W, H), ord='fro')
+#        loss_train = np.linalg.norm(X - np.matmul(W, H), ord='fro')
         if verbose:
-            print("Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, loss_train, cindex))
+            print("Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, cindex))
         if logger:
-            logger.log(logging.INFO, "Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, loss_train, cindex))
+            logger.log(logging.INFO, "Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, cindex))
             
         # test convergence criterion every 10 iterations
         if tol > 0 and n_iter % 10 == 0:
@@ -333,4 +333,4 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
         end_time = time.time()
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
-    return W, H, n_iter
+    return W, H, cph, n_iter

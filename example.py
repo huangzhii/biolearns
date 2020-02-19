@@ -58,6 +58,13 @@ bcd = np.intersect1d(bcd_m, bcd_p)
 X = mRNAseq.values[:,np.nonzero(np.in1d(bcd, bcd_m))[0]]
 t = brca.overall_survival_time[np.nonzero(np.in1d(bcd, bcd_p))[0]]
 e = brca.overall_survival_event[np.nonzero(np.in1d(bcd, bcd_p))[0]]
+
+X, e, t = np.log2(X[:,~np.isnan(t)]+1), e[~np.isnan(t)], t[~np.isnan(t)]
+
+
+rownorm = np.linalg.norm(X, axis = 0)
+X = X / rownorm
+
 n_components = 16
 
-CoxNMF(X, n_components=16, t=t, e=e)
+CoxNMF(X, n_components=16, t=t, e=e, alpha = 1e-5, verbose = True)
