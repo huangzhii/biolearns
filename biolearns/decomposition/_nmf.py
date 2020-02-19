@@ -24,13 +24,13 @@ from scipy import sparse
 from sklearn.utils import check_random_state, check_array
 from sklearn.decomposition._cdnmf_fast import _update_cdnmf_fast
 from lifelines.utils import concordance_index
-from coxph_fitter_modified import CoxPHFitter
+from ..survival import StepCoxPHFitter
 import time
 import warnings
 import logging
 EPSILON = np.finfo(np.float32).eps
 
-
+    
 def trace_dot(X, Y):
     """Trace of np.dot(X, Y.T).
 
@@ -282,7 +282,6 @@ def NMF(X, W, H, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True, random
         return W, Ht.T, n_iter
         
 
-
 def CoxNMF(X, W, H, t, e, alpha=1, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
@@ -324,7 +323,7 @@ def CoxNMF(X, W, H, t, e, alpha=1, solver='mu', update_rule='projection', cph_ma
             H_cox = pd.DataFrame(H.T)
             H_cox['time'] = t
             H_cox['event'] = e
-            cph = CoxPHFitter()
+            cph = StepCoxPHFitter()
             cph.max_iterations = cph_max_steps
             cph.fit(H_cox, duration_col='time', event_col='event', show_progress=False)
             cindex = concordance_index(H_cox['time'], -cph.predict_partial_hazard(H.T), H_cox['event'])
