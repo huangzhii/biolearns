@@ -23,7 +23,7 @@ import requests
 import sys
 import os
 import re
-
+import tarfile
 '''
 Parameters
 ----------
@@ -93,7 +93,7 @@ class TCGACancer():
                             'UCS':'Uterine Carcinosarcoma',
                             'UVM':'Uveal Melanoma'}
         if download:
-            self.mRNAseq = self.get_mRNAseq()
+#            self.mRNAseq = self.get_mRNAseq()
             self.miRSeq = None
             self.mRNA = None
             self.RPPA = None
@@ -115,22 +115,7 @@ class TCGACancer():
             return
             
         file_downloaded = self.cohort + '.mRNAseq.tar.gz'
-        if not os.path.exists(file_downloaded):
-            with open(file_downloaded, "wb") as f:
-#                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
-                    response = requests.get(link, stream=True)
-                    total_length = response.headers.get('content-length')
-                    if total_length is None: # no content length header
-                        f.write(response.content)
-                    else:
-                        dl = 0
-                        total_length = int(total_length)
-                        for data in response.iter_content(chunk_size=4096):
-                            dl += len(data)
-                            f.write(data)
-                            done = int(50 * dl / total_length)
-                            sys.stdout.write("\r[%s%s]" % ('=' * done + '>', ' ' * (50-done)) )    
-                            sys.stdout.flush()
+        self._download_file(link, file_downloaded)
                             
         if self.cohort in ['COADREAD', 'ESCA', 'GBM', 'HNSC', 'KIPAN', 'KIRC', 'KIRP', 'LAML', \
                            'LIHC', 'OV', 'PCPG', 'READ', 'SKCM', 'THYM', 'UCEC', 'UCS']:
@@ -145,21 +130,54 @@ class TCGACancer():
         os.remove(file_downloaded)
         return self.mRNAseq
         
-        
     def get_clinical(self):
         print('Retrieve clinical from http://firebrowse.org/ ...')
         print('Cohort: %s (%s)' % (self.cohortdict[self.cohort], self.cohort))
-        print('File type: Merge_Clinical')
+        print('File type: Clinical_Pick_Tier1')
 
         link = 'https://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/' + \
                 self.cohort + '/20160128/gdac.broadinstitute.org_' + self.cohort + \
-                '.Merge_Clinical.Level_1.2016012800.0.0.tar.gz'
+                '.Clinical_Pick_Tier1.Level_4.2016012800.0.0.tar.gz'
 
-            
         file_downloaded = self.cohort + '.clinical.tar.gz'
-        if not os.path.exists(file_downloaded):
-            with open(file_downloaded, "wb") as f:
-#                    print("Downloading %s to %s" % (self.cohort, file_downloaded))
+        self._download_file(link, file_downloaded)
+        with tarfile.open(file_downloaded) as f:
+            clinical_file = f.extractfile('gdac.broadinstitute.org_'+self.cohort+'.Clinical_Pick_Tier1.Level_4.2016012800.0.0/' + self.cohort + '.clin.merged.picked.txt')
+            self.clinical = pd.read_csv(clinical_file, header=0, index_col=0, sep='\t', low_memory=False).T
+        self.clinical.index = [v.upper() for v in self.clinical.index.astype(str)]
+        print('Patient barcode unique?', len(self.clinical.index) == len(np.unique(self.clinical.index)))
+        print('Done.')
+        os.remove(file_downloaded)
+        return self.clinical
+    
+    def _get_overall_survival(self, death_censor = True):
+        if self.clinical is None:
+            _ = self.get_clinical()
+            
+        colname = self.clinical.columns.values.astype(str)
+        
+        days_to_last_followup = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_last_followup' in d]]].values.astype(str)
+        days_to_death = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_death' in d]]].values.astype(str)
+        vital_status = self.clinical[colname[[i for i, d in enumerate(colname) if 'vital_status' in d]]].values.astype(str)
+        
+        print('Censorship: Dead = 1')
+        e = vital_status.reshape(-1)
+        e[[v in ['nan','NaN'] for v in vital_status]] = np.nan
+        e = e.astype(int)
+        if not death_censor:
+            e = 1-e
+        
+        t = days_to_last_followup
+        t[np.where(e == 1)] = days_to_death[np.where(e == 1)]
+        t[[v in ['nan','NaN'] for v in t]] = np.nan
+        t = t.reshape(-1).astype(float)
+        
+        return t, e
+            
+    def _download_file(self, link, filename):
+        if not os.path.exists(filename):
+            with open(filename, "wb") as f:
+#                    print("Downloading %s to %s" % (self.cohort, filename))
                     response = requests.get(link, stream=True)
                     total_length = response.headers.get('content-length')
                     if total_length is None: # no content length header
@@ -173,45 +191,3 @@ class TCGACancer():
                             done = int(50 * dl / total_length)
                             sys.stdout.write("\r[%s%s]" % ('=' * done + '>', ' ' * (50-done)) )    
                             sys.stdout.flush()
-                            
-        if self.cohort in ['CHOL']:
-            skiprows = 5
-        elif self.cohort in ['FPPP']:
-            skiprows = 63
-        elif self.cohort in ['UCEC']:
-            skiprows = 78
-        elif self.cohort in ['GBM', 'THCA', 'UCS']:
-            skiprows = 45
-        elif self.cohort in ['LIHC', 'LUAD']:
-            skiprows = 105
-        elif self.cohort in ['STES']:
-            skiprows = 104
-        else:
-            skiprows = None
-        self.clinical = pd.read_csv(file_downloaded, header=0, skiprows=skiprows, index_col=0, sep='\t', low_memory=False).T
-        self.clinical.index = [v.upper() for v in self.clinical['patient.bcr_patient_barcode'].values[:,0].astype(str)]
-        print('Patient barcode unique?', len(self.clinical.index) == len(np.unique(self.clinical.index)))
-        print('Done.')
-        os.remove(file_downloaded)
-        return self.clinical
-    
-    def _get_overall_survival(self, death_censor = True):
-        if self.clinical is None:
-            _ = self.get_clinical()
-            
-        colname = self.clinical.columns.values.astype(str)
-        
-        days_to_last_followup = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_last_followup' in d]]].values[:,0].astype(float)
-        days_to_death = self.clinical[colname[[i for i, d in enumerate(colname) if 'days_to_death' in d]]].values[:,0].astype(float)
-        vital_status = self.clinical[colname[[i for i, d in enumerate(colname) if 'vital_status' in d]]].values[:,0].astype(str)
-        
-#        print(np.unique(vital_status))
-        print('Censorship:', ['ALIVE', 'DEAD'][int(death_censor)])
-        e = np.array([v.upper() in ['DEAD','DEATH','DECEASE','DECEASED'] for v in vital_status]).astype(float)
-        e[vital_status == 'nan'] = np.nan
-        t = days_to_last_followup
-        t[np.where(e == 1)] = days_to_death[np.where(e == 1)]
-        if not death_censor:
-            e = 1-e
-        return t, e
-            
