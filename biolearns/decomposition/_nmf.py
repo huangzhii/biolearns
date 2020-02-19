@@ -121,12 +121,15 @@ def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True, orth_W=
         denominator = np.dot(W, HHt)
     else:
         # ONMF on W
-#        denominator = np.dot(np.dot(np.dot(W, W.T),X),H.T)
-        denominator = np.dot(np.dot(np.dot(W, H),X.T),W)
+        denominator = W.dot(W.T).dot(X).dot(H.T) # Ding et al. (2006) Orthogonal Nonnegative Matrix Tri-factorizations for Clustering
+#        denominator = W.dot(H).dot(X.T).dot(W)
     denominator[denominator == 0] = EPSILON
 
     numerator /= denominator
-    delta_W = numerator
+    if not orth_W:
+        delta_W = numerator
+    else:
+        delta_W = np.sqrt(numerator)
     return delta_W, HHt, XHt
 
 def _multiplicative_update_h(X, W, H, beta_loss, l1_reg_H, l2_reg_H, gamma):
@@ -248,7 +251,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, eta_b = None, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, eta_b = None, cph_penalizer=0, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -291,7 +294,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, et
             H_cox = pd.DataFrame(H.T)
             H_cox['time'] = t
             H_cox['event'] = e
-            cph = StepCoxPHFitter()
+            cph = StepCoxPHFitter(cph_penalizer)
             cph.max_iterations = cph_max_steps
             if not beta:
                 initial_point = None
