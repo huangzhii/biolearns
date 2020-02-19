@@ -318,9 +318,9 @@ def CoxNMF(X, t, e, n_components, alpha=1, solver='mu', update_rule='projection'
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
 #        loss_train = np.linalg.norm(X - np.matmul(W, H), ord='fro')
         if verbose:
-            print("Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, cindex))
+            print("Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
         if logger:
-            logger.log(logging.INFO, "Epoch %04d error: %f = %f, concordance index: %f" % (n_iter, error, cindex))
+            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
             
         # test convergence criterion every 10 iterations
         if tol > 0 and n_iter % 10 == 0:
