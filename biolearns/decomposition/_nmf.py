@@ -102,7 +102,7 @@ def calcuate_Frobenius_norm(X, W, H, square_root=False):
     else:
         return res
 
-def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True, orth_W=False):
+def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True):
     """update W in Multiplicative Update NMF"""
     # Numerator
     if XHt is None:
@@ -114,23 +114,40 @@ def _multiplicative_update_w(X, W, H, HHt=None, XHt=None, update_H=True, orth_W=
         # preserve the XHt, which is not re-computed (update_H=False)
         numerator = XHt.copy()
 
-    if not orth_W:
-        # Denominator
-        if HHt is None:
-            HHt = np.dot(H, H.T)
-        denominator = np.dot(W, HHt)
-    else:
-        # ONMF on W
-        denominator = W.dot(W.T).dot(X).dot(H.T) # Ding et al. (2006) Orthogonal Nonnegative Matrix Tri-factorizations for Clustering
-#        denominator = W.dot(H).dot(X.T).dot(W)
+    # Denominator
+    if HHt is None:
+        HHt = np.dot(H, H.T)
+    denominator = np.dot(W, HHt)
     denominator[denominator == 0] = EPSILON
-
     numerator /= denominator
-    if not orth_W:
-        delta_W = numerator
-    else:
-        delta_W = np.sqrt(numerator)
+    delta_W = numerator
     return delta_W, HHt, XHt
+
+def _multiplicative_update_w_orth(X, W, H, HHt=None, XHt=None, sigma=0):
+    '''
+        Implemented based on equation (18) from:
+        Mirzal, Andri. "A convergent algorithm for orthogonal nonnegative matrix factorization."
+        Journal of Computational and Applied Mathematics 260 (2014): 149-166.
+    '''
+    if XHt is None:
+        XHt = safe_sparse_dot(X, H.T)
+        
+    numerator = XHt + sigma*W
+    # Denominator
+    if HHt is None:
+        HHt = np.dot(H, H.T)
+    # ONMF on W
+    denominator = np.dot(W, HHt) + sigma * W.dot(W.T).dot(W)
+    denominator[denominator == 0] = EPSILON
+    numerator /= denominator
+    delta_W = numerator
+    
+#    # ONMF on W
+#    denominator = W.dot(W.T).dot(X).dot(H.T) # Ding et al. (2006) Orthogonal Nonnegative Matrix Tri-factorizations for Clustering
+#    delta_W = np.sqrt(numerator)
+    
+    return delta_W, HHt, XHt
+
 
 def _multiplicative_update_h(X, W, H, beta_loss, l1_reg_H, l2_reg_H, gamma):
     """update H in Multiplicative Update NMF"""
@@ -251,7 +268,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, eta_b = None, cph_penalizer=0, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -272,6 +289,12 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, et
         
     alpha : scalar value.
             parameter used for learning the H guided by Cox model.
+            
+    sigma : scalar value.
+            orthogonal constraint on W.
+            
+    eta_b : scalar value.
+            step size in Cox model.
     '''
     W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
         
@@ -286,7 +309,11 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, orth_W = False, orth_H = False, et
     for n_iter in range(1, max_iter + 1):
         # update W
         # HHt and XHt are saved and reused if not update_H
-        delta_W, HHt, XHt = _multiplicative_update_w(X, W, H, HHt, XHt, update_H=update_H, orth_W=orth_W)
+        if sigma == 0:
+            delta_W, HHt, XHt = _multiplicative_update_w(X, W, H, HHt, XHt, update_H=update_H)
+        elif sigma > 0:
+            delta_W, HHt, XHt = _multiplicative_update_w_orth(X, W, H, HHt, XHt, sigma = sigma)
+            
         W *= delta_W
         
         beta, cph = None, None
