@@ -321,7 +321,10 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             H_cox = pd.DataFrame(H.T)
             H_cox['time'] = t
             H_cox['event'] = e
-            cph = StepCoxPHFitter(cph_penalizer)
+            if cph_penalizer > 0:
+                cph = StepCoxPHFitter(cph_penalizer)
+            else:
+                cph = StepCoxPHFitter()
             cph.max_iterations = cph_max_steps
             if not beta:
                 initial_point = None
