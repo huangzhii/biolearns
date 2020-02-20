@@ -301,7 +301,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
     # used for the convergence criterion
     error_at_init = calcuate_Frobenius_norm(X, W, H, square_root=True)
     previous_error = error_at_init
-    
+    max_cindex = 0.5
     start_time = time.time()
     HHt, XHt = None, None
     t_geq_matrix = np.array([[int(y >= x) for i,x in enumerate(t)] for j,y in enumerate(t)])
@@ -364,6 +364,9 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             if (previous_error - error) / error_at_init < tol:
                 break
             previous_error = error
+            if (cindex - max_cindex) < -0.02: # if new concordance index smaller than previous 0.02
+                break
+            max_cindex = max(max_cindex, cindex)
 
     # do not print if we have already printed in the convergence test
     if verbose and (tol == 0 or n_iter % 10 != 0):
