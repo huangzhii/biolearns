@@ -353,11 +353,11 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             HHt, XHt = None, None
     
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
-#        loss_train = np.linalg.norm(X - np.matmul(W, H), ord='fro')
+        orthogonal_W_loss = np.linalg.norm(np.identity(W.shape[0]) - np.matmul(W, W.T), ord='fro')
         if verbose:
-            print("Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
+            print("Epoch %04d error: %f, concordance index: %f, W_orth: %f" % (n_iter, error, cindex, orthogonal_W_loss))
         if logger:
-            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
+            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f, W_orth: %f" % (n_iter, error, cindex, orthogonal_W_loss))
             
         # test convergence criterion every 10 iterations
         if tol > 0 and n_iter % 10 == 0:
