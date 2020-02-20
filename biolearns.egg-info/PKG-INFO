@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: biolearns
-Version: 0.0.22
+Version: 0.0.24
 Summary: BioLearns: Computational Biology and Bioinformatics Toolbox in Python
 Home-page: http://biolearns.com
 Author: Zhi Huang
@@ -11,13 +11,14 @@ Description: # biolearns
         
         <div style="text-align:center"><img src="http://biolearns.com/img/logo.png" width=300/></div>
         
+        [![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)](https://github.com/huangzhii/biolearns/blob/master/LICENSE)
         
         ## Installation
         
         * From PyPI
         
         ```bash
-        pip install biolearns
+        pip install biolearns -U
         ```
         
         ## Documentation and Tutorials
@@ -26,6 +27,8 @@ Description: # biolearns
         
             [Wiki](https://github.com/huangzhii/biolearns/wiki)
         
+        ## Disclaimer
+        Please note that this is a pre-release version of the BioLearns which is still undergoing final testing before its official release. The website, its software and all content found on it are provided on an "as is" and "as available" basis. BioLearns does not give any warranties, whether express or implied, as to the suitability or usability of the website, its software or any of its content. BioLearns will not be liable for any loss, whether such loss is direct, indirect, special or consequential, suffered by any party as a result of their use of the libraries or content. Any usage of the libraries is done at the user's own risk and the user will be solely responsible for any damage to any computer system or loss of data that results from such activities. Should you encounter any bugs, glitches, lack of functionality or other problems on the website, please let us know immediately so we can rectify these accordingly. Your help in this regard is greatly appreciated.
         
         
         
@@ -38,11 +41,11 @@ Description: # biolearns
         the TCGA Research Network: https://www.cancer.gov/tcga.
         
         ```python
-        from biolearns.dataset.TCGA import TCGACancer
+        from biolearns.dataset import TCGA
         ```
         
         ```python
-        brca = TCGACancer('BRCA')
+        brca = TCGA('BRCA')
         mRNAseq = brca.mRNAseq
         clinical = brca.clinical
         ```
@@ -67,16 +70,16 @@ Description: # biolearns
         
         We firstly download and access the mRNAseq data.
         ```python
-        from biolearns.dataset.TCGA import TCGACancer
+        from biolearns.dataset import TCGA
         
-        brca = TCGACancer('BRCA')
+        brca = TCGA('BRCA')
         mRNAseq = brca.mRNAseq
         ```
         
         mRNAseq data is noisy. We filter out 50% of genes with lowest mean values, and then filter out 50% remained genes with lowest variance values.
         
         ```python
-        from biolearns.preprocessing.filter import expression_filter
+        from biolearns.preprocessing import expression_filter
         mRNAseq = expression_filter(mRNAseq, meanq = 0.5, varq = 0.5)
         ```
         
@@ -85,7 +88,7 @@ Description: # biolearns
         The gene co-expression analysis is performed by simply call the ```fit()``` function.
         
         ```python
-        from biolearns.coexpression.lmQCM import lmQCM
+        from biolearns.coexpression import lmQCM
         
         lobj = lmQCM(mRNAseq)
         clusters, genes, eigengene_mat = lobj.fit()
@@ -95,9 +98,9 @@ Description: # biolearns
         
         We firstly download and access the mRNAseq data. Use breast cancer as an example.
         ```python
-        from biolearns.dataset.TCGA import TCGACancer
+        from biolearns.dataset import TCGA
         
-        brca = TCGACancer('BRCA')
+        brca = TCGA('BRCA')
         mRNAseq = brca.mRNAseq
         ```
         

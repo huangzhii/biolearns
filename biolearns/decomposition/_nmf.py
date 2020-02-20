@@ -21,8 +21,8 @@ import numpy as np
 import scipy.sparse as sp
 import pandas as pd
 from sklearn.utils import check_random_state, check_array
-from sklearn.decomposition._nmf import _initialize_nmf
-from sklearn.decomposition._cdnmf_fast import _update_cdnmf_fast
+from sklearn.decomposition.nmf import _initialize_nmf
+from sklearn.decomposition.cdnmf_fast import _update_cdnmf_fast
 from sklearn.utils.extmath import safe_sparse_dot
 
 from lifelines.utils import concordance_index
