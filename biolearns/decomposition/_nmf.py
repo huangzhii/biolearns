@@ -268,7 +268,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, ci_tol=0.02, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -295,6 +295,8 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             
     eta_b : scalar value.
             step size in Cox model.
+            
+    ci_tol: Tolerace of decrease of oncordance index to stop iteration.
     '''
     W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
         
@@ -367,7 +369,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             if (previous_error - error) / error_at_init < tol:
                 break
             previous_error = error
-            if (cindex - max_cindex) < -0.02: # if new concordance index smaller than previous 0.02
+            if (cindex - max_cindex) < -ci_tol: # if new concordance index smaller than previous 0.02
                 break
             max_cindex = max(max_cindex, cindex)
 
