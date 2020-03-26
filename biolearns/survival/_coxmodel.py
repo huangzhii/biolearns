@@ -26,7 +26,7 @@ from lifelines import CoxPHFitter
 from numpy.linalg import inv
 from datetime import datetime
 from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterable
-
+import warnings
 
 class StepCoxPHFitter(CoxPHFitter):
     def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None, baseline_estimation_method="breslow"):
@@ -186,32 +186,37 @@ class StepCoxPHFitter(CoxPHFitter):
 
         self._norm_mean = X.mean(0)
         self._norm_std = X.std(0)
-        X_norm = normalize(X, self._norm_mean, self._norm_std)
 
-        params_ = self._fit_model(
+        # this is surprisingly faster to do...
+        X_norm = pd.DataFrame(
+            normalize(X.values, self._norm_mean.values, self._norm_std.values), index=X.index, columns=X.columns
+        )
+
+        params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_ = self._fit_model(
             X_norm, T, E, weights=weights, initial_point=initial_point, show_progress=show_progress, step_size=step_size, max_steps = self.cph_max_steps
         )
 
-        self.params_ = pd.Series(params_, index=X.columns, name="coef") / self._norm_std
-        self.hazard_ratios_ = pd.Series(np.exp(self.params_), index=X.columns, name="exp(coef)")
+        self.log_likelihood_ = ll_
+        self.variance_matrix_ = variance_matrix_
+        self.params_ = pd.Series(params_, index=X.columns, name="coef")
+        self.baseline_hazard_ = baseline_hazard_
+        self.baseline_cumulative_hazard_ = baseline_cumulative_hazard_
 
-        self.variance_matrix_ = -inv(self._hessian_) / np.outer(self._norm_std, self._norm_std)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._predicted_partial_hazards_ = (
+                self.predict_partial_hazard(X)
+                .to_frame(name="P")
+                .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
+                .set_index(X.index)
+            )
+
         self.standard_errors_ = self._compute_standard_errors(X_norm, T, E, weights)
         self.confidence_intervals_ = self._compute_confidence_intervals()
-
-        self._predicted_partial_hazards_ = (
-            self.predict_partial_hazard(X)
-            .rename(columns={0: "P"})
-            .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
-            .set_index(X.index)
-        )
-        self.baseline_hazard_ = self._compute_baseline_hazards()
-        self.baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard()
         self.baseline_survival_ = self._compute_baseline_survival()
 
-        if hasattr(self, "_concordance_score_"):
-            # we have already fit the model.
-            del self._concordance_score_
+        if hasattr(self, "_concordance_index_"):
+            del self._concordance_index_
 
         return self
     
