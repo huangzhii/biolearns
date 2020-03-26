@@ -18,11 +18,15 @@
 # such damage.
 #
 import numpy as np
+from numpy import dot, einsum, log, exp, zeros, arange, multiply, ndarray
 import pandas as pd
+from pandas import DataFrame, Series, Index
 from lifelines.utils import normalize, coalesce, CensoringType
 from lifelines import CoxPHFitter
 from numpy.linalg import inv
 from datetime import datetime
+from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterable
+
 
 class StepCoxPHFitter(CoxPHFitter):
     def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None, baseline_estimation_method="breslow"):
@@ -210,3 +214,40 @@ class StepCoxPHFitter(CoxPHFitter):
             del self._concordance_score_
 
         return self
+    
+    
+    
+    def _fit_model_breslow(
+        self,
+        X: DataFrame,
+        T: Series,
+        E: Series,
+        weights: Series,
+        initial_point: Optional[ndarray] = None,
+        step_size: Optional[float] = None,
+        show_progress: bool = True,
+        max_steps: int = 1
+    ):
+        beta_, ll_, hessian_ = self._newton_rhapson_for_efron_model(
+            X, T, E, weights, initial_point=initial_point, step_size=step_size, show_progress=show_progress
+        )
+
+        # compute the baseline hazard here.
+        predicted_partial_hazards_ = (
+            pd.DataFrame(np.exp(dot(X, beta_)), columns=["P"])
+            .assign(T=T.values, E=E.values, W=weights.values)
+            .set_index(X.index)
+        )
+        baseline_hazard_ = self._compute_baseline_hazards(predicted_partial_hazards_)
+        baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard(baseline_hazard_)
+
+        # rescale parameters back to original scale.
+        params_ = beta_ / self._norm_std.values
+        if hessian_.size > 0:
+            variance_matrix_ = pd.DataFrame(
+                -inv(hessian_) / np.outer(self._norm_std, self._norm_std), index=X.columns, columns=X.columns
+            )
+        else:
+            variance_matrix_ = pd.DataFrame(index=X.columns, columns=X.columns)
+
+        return params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_
