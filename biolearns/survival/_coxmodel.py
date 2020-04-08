@@ -18,20 +18,24 @@
 # such damage.
 #
 import numpy as np
+from numpy import dot, einsum, log, exp, zeros, arange, multiply, ndarray
 import pandas as pd
+from pandas import DataFrame, Series, Index
 from lifelines.utils import normalize, coalesce, CensoringType
 from lifelines import CoxPHFitter
 from numpy.linalg import inv
 from datetime import datetime
+from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterable
+import warnings
 
 class StepCoxPHFitter(CoxPHFitter):
-    def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None):
+    def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None, baseline_estimation_method="breslow"):
         super(CoxPHFitter, self).__init__(alpha=alpha)
         if penalizer < 0:
             raise ValueError("penalizer parameter must be >= 0.")
         if tie_method != "Efron":
             raise NotImplementedError("Only Efron is available at the moment.")
-
+        self.baseline_estimation_method = baseline_estimation_method
         self.alpha = alpha
         self.tie_method = tie_method
         self.penalizer = penalizer
@@ -56,7 +60,6 @@ class StepCoxPHFitter(CoxPHFitter):
     ):
         """
         Fit the Cox proportional hazard model to a dataset.
-
         Parameters
         ----------
         df: DataFrame
@@ -65,15 +68,12 @@ class StepCoxPHFitter(CoxPHFitter):
             `duration_col` refers to
             the lifetimes of the subjects. `event_col` refers to whether
             the 'death' events was observed: 1 if observed, 0 else (censored).
-
         duration_col: string
             the name of the column in DataFrame that contains the subjects'
             lifetimes.
-
         event_col: string, optional
             the  name of thecolumn in DataFrame that contains the subjects' death
             observation. If left as None, assume all individuals are uncensored.
-
         weights_col: string, optional
             an optional column in the DataFrame, df, that denotes the weight per subject.
             This column is expelled and not used as a covariate, but as a weight in the
@@ -81,47 +81,35 @@ class StepCoxPHFitter(CoxPHFitter):
             This can be used for case-weights. For example, a weight of 2 means there were two subjects with
             identical observations.
             This can be used for sampling weights. In that case, use `robust=True` to get more accurate standard errors.
-
         show_progress: boolean, optional (default=False)
             since the fitter is iterative, show convergence
             diagnostics. Useful if convergence is failing.
-
         initial_point: (d,) numpy array, optional
             initialize the starting point of the iterative
             algorithm. Default is the zero vector.
-
         strata: list or string, optional
             specify a column or list of columns n to use in stratification. This is useful if a
             categorical covariate does not obey the proportional hazard assumption. This
             is used similar to the `strata` expression in R.
             See http://courses.washington.edu/b515/l17.pdf.
-
         step_size: float, optional
             set an initial step size for the fitting algorithm. Setting to 1.0 may improve performance, but could also hurt convergence.
-
         robust: boolean, optional (default=False)
             Compute the robust errors using the Huber sandwich estimator, aka Wei-Lin estimate. This does not handle
             ties, so if there are high number of ties, results may significantly differ. See
             "The Robust Inference for the Cox Proportional Hazards Model", Journal of the American Statistical Association, Vol. 84, No. 408 (Dec., 1989), pp. 1074- 1078
-
         cluster_col: string, optional
             specifies what column has unique identifiers for clustering covariances. Using this forces the sandwich estimator (robust variance estimator) to
             be used.
-
         batch_mode: bool, optional
             enabling batch_mode can be faster for datasets with a large number of ties. If left as None, lifelines will choose the best option.
-
         Returns
         -------
         self: CoxPHFitter
             self with additional new properties: ``print_summary``, ``hazards_``, ``confidence_intervals_``, ``baseline_survival_``, etc.
-
-
         Note
         ----
         Tied survival times are handled using Efron's tie-method.
-
-
         Examples
         --------
         >>> from lifelines import CoxPHFitter
@@ -137,8 +125,6 @@ class StepCoxPHFitter(CoxPHFitter):
         >>> cph.fit(df, 'T', 'E')
         >>> cph.print_summary()
         >>> cph.predict_median(df)
-
-
         >>> from lifelines import CoxPHFitter
         >>>
         >>> df = pd.DataFrame({
@@ -154,7 +140,6 @@ class StepCoxPHFitter(CoxPHFitter):
         >>> cph.fit(df, 'T', 'E', strata=['month', 'age'], robust=True, weights_col='weights')
         >>> cph.print_summary()
         >>> cph.predict_median(df)
-
         """
         if duration_col is None:
             raise TypeError("duration_col cannot be None.")
@@ -182,31 +167,73 @@ class StepCoxPHFitter(CoxPHFitter):
 
         self._norm_mean = X.mean(0)
         self._norm_std = X.std(0)
-        X_norm = normalize(X, self._norm_mean, self._norm_std)
 
-        params_ = self._fit_model(
+        # this is surprisingly faster to do...
+        X_norm = pd.DataFrame(
+            normalize(X.values, self._norm_mean.values, self._norm_std.values), index=X.index, columns=X.columns
+        )
+
+        params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_ = self._fit_model(
             X_norm, T, E, weights=weights, initial_point=initial_point, show_progress=show_progress, step_size=step_size, max_steps = self.cph_max_steps
         )
 
-        self.params_ = pd.Series(params_, index=X.columns, name="coef") / self._norm_std
-        self.hazard_ratios_ = pd.Series(np.exp(self.params_), index=X.columns, name="exp(coef)")
+        self.log_likelihood_ = ll_
+        self.variance_matrix_ = variance_matrix_
+        self.params_ = pd.Series(params_, index=X.columns, name="coef")
+        self.baseline_hazard_ = baseline_hazard_
+        self.baseline_cumulative_hazard_ = baseline_cumulative_hazard_
 
-        self.variance_matrix_ = -inv(self._hessian_) / np.outer(self._norm_std, self._norm_std)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self._predicted_partial_hazards_ = (
+                self.predict_partial_hazard(X)
+                .to_frame(name="P")
+                .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
+                .set_index(X.index)
+            )
+
         self.standard_errors_ = self._compute_standard_errors(X_norm, T, E, weights)
         self.confidence_intervals_ = self._compute_confidence_intervals()
-
-        self._predicted_partial_hazards_ = (
-            self.predict_partial_hazard(X)
-            .rename(columns={0: "P"})
-            .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
-            .set_index(X.index)
-        )
-        self.baseline_hazard_ = self._compute_baseline_hazards()
-        self.baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard()
         self.baseline_survival_ = self._compute_baseline_survival()
 
-        if hasattr(self, "_concordance_score_"):
-            # we have already fit the model.
-            del self._concordance_score_
+        if hasattr(self, "_concordance_index_"):
+            del self._concordance_index_
 
         return self
+    
+    
+    
+    def _fit_model_breslow(
+        self,
+        X: DataFrame,
+        T: Series,
+        E: Series,
+        weights: Series,
+        initial_point: Optional[ndarray] = None,
+        step_size: Optional[float] = None,
+        show_progress: bool = True,
+        max_steps: int = 1
+    ):
+        beta_, ll_, hessian_ = self._newton_rhapson_for_efron_model(
+            X, T, E, weights, initial_point=initial_point, step_size=step_size, show_progress=show_progress
+        )
+
+        # compute the baseline hazard here.
+        predicted_partial_hazards_ = (
+            pd.DataFrame(np.exp(dot(X, beta_)), columns=["P"])
+            .assign(T=T.values, E=E.values, W=weights.values)
+            .set_index(X.index)
+        )
+        baseline_hazard_ = self._compute_baseline_hazards(predicted_partial_hazards_)
+        baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard(baseline_hazard_)
+
+        # rescale parameters back to original scale.
+        params_ = beta_ / self._norm_std.values
+        if hessian_.size > 0:
+            variance_matrix_ = pd.DataFrame(
+                -inv(hessian_) / np.outer(self._norm_std, self._norm_std), index=X.columns, columns=X.columns
+            )
+        else:
+            variance_matrix_ = pd.DataFrame(index=X.columns, columns=X.columns)
+
+        return params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_
