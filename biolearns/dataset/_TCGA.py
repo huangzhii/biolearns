@@ -24,6 +24,7 @@ import sys
 import os
 import re
 import tarfile
+import tempfile
 '''
 Parameters
 ----------
@@ -93,6 +94,7 @@ class TCGA():
                             'UCS':'Uterine Carcinosarcoma',
                             'UVM':'Uveal Melanoma'}
         if download:
+#            self.tmpdir = tempfile.TemporaryDirectory()
             self.mRNAseq = self.get_mRNAseq()
             self.miRSeq = None
             self.mRNA = None
@@ -114,8 +116,10 @@ class TCGA():
             print('No mRNAseq data.')
             return
             
-        file_downloaded = self.cohort + '.mRNAseq.tar.gz'
-        self._download_file(link, file_downloaded)
+        file_downloaded = '/tmp/' + self.cohort + '.mRNAseq.tar.gz'
+        
+        if not os.path.exists(file_downloaded):
+            self._download_file(link, file_downloaded)
                             
         if self.cohort in ['COADREAD', 'ESCA', 'GBM', 'HNSC', 'KIPAN', 'KIRC', 'KIRP', 'LAML', \
                            'LIHC', 'OV', 'PCPG', 'READ', 'SKCM', 'THYM', 'UCEC', 'UCS']:
@@ -127,7 +131,7 @@ class TCGA():
         self.mRNAseq = self.mRNAseq.astype(float)
         self.mRNAseq.index = [re.split(r"\b\|\b", idx, 1)[0] for idx in self.mRNAseq.index.values.astype(str)]
         print('Done.')
-        os.remove(file_downloaded)
+#        os.remove(file_downloaded)
         return self.mRNAseq
         
     def get_clinical(self):
@@ -139,15 +143,16 @@ class TCGA():
                 self.cohort + '/20160128/gdac.broadinstitute.org_' + self.cohort + \
                 '.Clinical_Pick_Tier1.Level_4.2016012800.0.0.tar.gz'
 
-        file_downloaded = self.cohort + '.clinical.tar.gz'
-        self._download_file(link, file_downloaded)
+        file_downloaded = '/tmp/' + self.cohort + '.clinical.tar.gz'
+        if not os.path.exists(file_downloaded):
+            self._download_file(link, file_downloaded)
         with tarfile.open(file_downloaded) as f:
             clinical_file = f.extractfile('gdac.broadinstitute.org_'+self.cohort+'.Clinical_Pick_Tier1.Level_4.2016012800.0.0/' + self.cohort + '.clin.merged.picked.txt')
             self.clinical = pd.read_csv(clinical_file, header=0, index_col=0, sep='\t', low_memory=False).T
         self.clinical.index = [v.upper() for v in self.clinical.index.astype(str)]
         print('Patient barcode unique?', len(self.clinical.index) == len(np.unique(self.clinical.index)))
         print('Done.')
-        os.remove(file_downloaded)
+#        os.remove(file_downloaded)
         return self.clinical
     
     def _get_overall_survival(self, death_censor = True):
