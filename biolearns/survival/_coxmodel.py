@@ -18,24 +18,20 @@
 # such damage.
 #
 import numpy as np
-from numpy import dot, einsum, log, exp, zeros, arange, multiply, ndarray
 import pandas as pd
-from pandas import DataFrame, Series, Index
 from lifelines.utils import normalize, coalesce, CensoringType
 from lifelines import CoxPHFitter
 from numpy.linalg import inv
 from datetime import datetime
-from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterable
-import warnings
 
 class StepCoxPHFitter(CoxPHFitter):
-    def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None, baseline_estimation_method="breslow"):
+    def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, strata=None):
         super(CoxPHFitter, self).__init__(alpha=alpha)
         if penalizer < 0:
             raise ValueError("penalizer parameter must be >= 0.")
         if tie_method != "Efron":
             raise NotImplementedError("Only Efron is available at the moment.")
-        self.baseline_estimation_method = baseline_estimation_method
+
         self.alpha = alpha
         self.tie_method = tie_method
         self.penalizer = penalizer
@@ -186,73 +182,31 @@ class StepCoxPHFitter(CoxPHFitter):
 
         self._norm_mean = X.mean(0)
         self._norm_std = X.std(0)
+        X_norm = normalize(X, self._norm_mean, self._norm_std)
 
-        # this is surprisingly faster to do...
-        X_norm = pd.DataFrame(
-            normalize(X.values, self._norm_mean.values, self._norm_std.values), index=X.index, columns=X.columns
-        )
-
-        params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_ = self._fit_model(
+        params_ = self._fit_model(
             X_norm, T, E, weights=weights, initial_point=initial_point, show_progress=show_progress, step_size=step_size, max_steps = self.cph_max_steps
         )
 
-        self.log_likelihood_ = ll_
-        self.variance_matrix_ = variance_matrix_
-        self.params_ = pd.Series(params_, index=X.columns, name="coef")
-        self.baseline_hazard_ = baseline_hazard_
-        self.baseline_cumulative_hazard_ = baseline_cumulative_hazard_
+        self.params_ = pd.Series(params_, index=X.columns, name="coef") / self._norm_std
+        self.hazard_ratios_ = pd.Series(np.exp(self.params_), index=X.columns, name="exp(coef)")
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self._predicted_partial_hazards_ = (
-                self.predict_partial_hazard(X)
-                .to_frame(name="P")
-                .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
-                .set_index(X.index)
-            )
-
+        self.variance_matrix_ = -inv(self._hessian_) / np.outer(self._norm_std, self._norm_std)
         self.standard_errors_ = self._compute_standard_errors(X_norm, T, E, weights)
         self.confidence_intervals_ = self._compute_confidence_intervals()
-        self.baseline_survival_ = self._compute_baseline_survival()
 
-        if hasattr(self, "_concordance_index_"):
-            del self._concordance_index_
-
-        return self
-    
-    
-    
-    def _fit_model_breslow(
-        self,
-        X: DataFrame,
-        T: Series,
-        E: Series,
-        weights: Series,
-        initial_point: Optional[ndarray] = None,
-        step_size: Optional[float] = None,
-        show_progress: bool = True,
-        max_steps: int = 1
-    ):
-        beta_, ll_, hessian_ = self._newton_rhapson_for_efron_model(
-            X, T, E, weights, initial_point=initial_point, step_size=step_size, show_progress=show_progress
-        )
-
-        # compute the baseline hazard here.
-        predicted_partial_hazards_ = (
-            pd.DataFrame(np.exp(dot(X, beta_)), columns=["P"])
-            .assign(T=T.values, E=E.values, W=weights.values)
+        self._predicted_partial_hazards_ = (
+            self.predict_partial_hazard(X)
+            .rename(columns={0: "P"})
+            .assign(T=self.durations.values, E=self.event_observed.values, W=self.weights.values)
             .set_index(X.index)
         )
-        baseline_hazard_ = self._compute_baseline_hazards(predicted_partial_hazards_)
-        baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard(baseline_hazard_)
+        self.baseline_hazard_ = self._compute_baseline_hazards()
+        self.baseline_cumulative_hazard_ = self._compute_baseline_cumulative_hazard()
+        self.baseline_survival_ = self._compute_baseline_survival()
 
-        # rescale parameters back to original scale.
-        params_ = beta_ / self._norm_std.values
-        if hessian_.size > 0:
-            variance_matrix_ = pd.DataFrame(
-                -inv(hessian_) / np.outer(self._norm_std, self._norm_std), index=X.columns, columns=X.columns
-            )
-        else:
-            variance_matrix_ = pd.DataFrame(index=X.columns, columns=X.columns)
+        if hasattr(self, "_concordance_score_"):
+            # we have already fit the model.
+            del self._concordance_score_
 
-        return params_, ll_, variance_matrix_, baseline_hazard_, baseline_cumulative_hazard_
+        return self
