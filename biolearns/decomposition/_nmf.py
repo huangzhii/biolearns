@@ -324,7 +324,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             H_cox['time'] = t
             H_cox['event'] = e
             if cph_penalizer > 0:
-                cph = StepCoxPHFitter(cph_penalizer)
+                cph = StepCoxPHFitter(penalizer = cph_penalizer)
             else:
                 cph = StepCoxPHFitter()
             cph.max_iterations = cph_max_steps
