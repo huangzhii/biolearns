@@ -29,14 +29,13 @@ from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterab
 import warnings
 
 class StepCoxPHFitter(CoxPHFitter):
-    def __init__(self, alpha=0.05, tie_method="Efron", penalizer=0.0, l1_ratio = 0.0, strata=None, baseline_estimation_method="breslow"):
-        super(CoxPHFitter, self).__init__(alpha=alpha)
+    def __init__(self, tie_method="Efron", penalizer=0.0, l1_ratio = 0.0, strata=None, baseline_estimation_method="breslow"):
+        super(CoxPHFitter, self).__init__()
         if penalizer < 0:
             raise ValueError("penalizer parameter must be >= 0.")
         if tie_method != "Efron":
             raise NotImplementedError("Only Efron is available at the moment.")
         self.baseline_estimation_method = baseline_estimation_method
-        self.alpha = alpha
         self.l1_ratio = l1_ratio
         self.tie_method = tie_method
         self.penalizer = penalizer
