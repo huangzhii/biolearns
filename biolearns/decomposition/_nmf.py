@@ -268,7 +268,7 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, l1_ratio = 0, ci_tol=0.02, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, logger=None, verbose=0):
+def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, l1_ratio = 0, ci_tol=0.02, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, H_row_normalization=False, logger=None, verbose=0):
     '''
     Parameters
     ----------
@@ -353,6 +353,8 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
                 H_partial[H_partial < 0] = 0
             
             H = H_mu + H_partial
+            if H_row_normalization:
+                H = (H.T / np.linalg.norm(H, axis=1).T).T
             
             # These values will be recomputed since H changed
             HHt, XHt = None, None
