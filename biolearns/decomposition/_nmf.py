@@ -356,7 +356,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             
             H = H_mu + H_partial
             if H_row_normalization:
-                H = H / np.linalg.norm(H, axis=0)
+                H = (H.T / np.linalg.norm(H, axis=1)).T
             
             # These values will be recomputed since H changed
             HHt, XHt = None, None
@@ -382,4 +382,5 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
     return W, H, cph, n_iter
+
 
