@@ -317,6 +317,8 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             delta_W, HHt, XHt = _multiplicative_update_w_orth(X, W, H, HHt, XHt, sigma = sigma)
             
         W *= delta_W
+#        if H_row_normalization:
+#            W = (W.T / np.linalg.norm(W, axis=1).T).T
         
         beta, cph = None, None
         if update_beta:
@@ -354,17 +356,16 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             
             H = H_mu + H_partial
             if H_row_normalization:
-                H = (H.T / np.linalg.norm(H, axis=1).T).T
+                H = H / np.linalg.norm(H, axis=0)
             
             # These values will be recomputed since H changed
             HHt, XHt = None, None
     
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
-        orthogonal_W_loss = np.linalg.norm(np.identity(W.shape[0]) - np.matmul(W, W.T), ord='fro')
         if verbose:
-            print("Epoch %04d error: %f, concordance index: %f, W_orth: %f" % (n_iter, error, cindex, orthogonal_W_loss))
+            print("Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
         if logger:
-            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f, W_orth: %f" % (n_iter, error, cindex, orthogonal_W_loss))
+            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
             
         # test convergence criterion every 10 iterations
 #        if tol > 0 and n_iter % 10 == 0:
@@ -381,3 +382,4 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
     return W, H, cph, n_iter
+
