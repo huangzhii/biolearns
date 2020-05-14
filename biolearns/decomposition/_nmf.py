@@ -307,7 +307,8 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
     start_time = time.time()
     HHt, XHt = None, None
     t_geq_matrix = np.array([[int(y >= x) for i,x in enumerate(t)] for j,y in enumerate(t)])
-
+    error_list = []
+    cindex_list = []
     for n_iter in range(1, max_iter + 1):
         # update W
         # HHt and XHt are saved and reused if not update_H
@@ -366,7 +367,10 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             print("Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
         if logger:
             logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
-            
+        
+        error_list.append(error)
+        cindex_list.append(cindex)
+        
         # test convergence criterion every 10 iterations
 #        if tol > 0 and n_iter % 10 == 0:
         if (previous_error - error) / error_at_init < tol:
@@ -375,12 +379,13 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         if (cindex - max_cindex) < -ci_tol: # if new concordance index smaller than previous 0.02
             break
         max_cindex = max(max_cindex, cindex)
-
+        
     # do not print if we have already printed in the convergence test
     if verbose and (tol == 0 or n_iter % 10 != 0):
         end_time = time.time()
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
-    return W, H, cph, n_iter
+    return W, H, cph, n_iter, error_list, cindex_list
+
 
 
