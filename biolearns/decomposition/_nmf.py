@@ -24,6 +24,7 @@ from sklearn.utils import check_random_state, check_array
 from sklearn.decomposition.nmf import _initialize_nmf
 from sklearn.decomposition.cdnmf_fast import _update_cdnmf_fast
 from sklearn.utils.extmath import safe_sparse_dot
+import copy
 
 from lifelines.utils import concordance_index
 from ..survival import StepCoxPHFitter
@@ -378,14 +379,24 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         previous_error = error
         if (cindex - max_cindex) < -ci_tol: # if new concordance index smaller than previous 0.02
             break
-        max_cindex = max(max_cindex, cindex)
+        
+        if cindex >= max_cindex:
+            max_cindex = cindex
+            max_cindex_res = {}
+            max_cindex_res['W'] = W
+            max_cindex_res['H'] = H
+            max_cindex_res['cph'] = copy.deepcopy(cph)
+            max_cindex_res['error'] = error
+            max_cindex_res['cindex'] = cindex
+            
         
     # do not print if we have already printed in the convergence test
     if verbose and (tol == 0 or n_iter % 10 != 0):
         end_time = time.time()
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
-    return W, H, cph, n_iter, error_list, cindex_list
+    return W, H, cph, n_iter, error_list, cindex_list, max_cindex_res
+
 
 
 
