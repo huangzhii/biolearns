@@ -196,8 +196,8 @@ class lmQCM():
             clusters_names.append(list(self.data_in.index.values[mc]))
         eigengene_matrix = np.zeros((len(clusters), self.data_in.shape[1]))
         for i in range(len(clusters_names)):
-            geneID = clusters_names[i]
-            X = self.data_in.loc[geneID, ]
+            gene = clusters_names[i]
+            X = self.data_in.loc[gene, ]
             mu = np.nanmean(X, axis = 1) # rowMeans
             stddev = np.nanstd(X, axis = 1, ddof= 1) # ddof=1 provides unbiased estimation (1/(n-1))
             XNorm = (X.T-mu).T
@@ -209,6 +209,39 @@ class lmQCM():
         self.clusters_names = clusters_names
         self.eigengene_matrix = eigengene_matrix
         return self.clusters, self.clusters_names, self.eigengene_matrix
+    
+    def predict(self, data_in):
+        '''
+        data_in : a P * N DataFrame with P index (genes) and N samples
+        '''
+        if not isinstance(data_in, pd.DataFrame):
+            print('Error: Input data is not pandas DataFrame.')
+            return
+        try:
+            clusters_names = self.clusters_names
+        except AttributeError:
+            print('No fitted result found. Please try to fit a data.')
+            return
+        else:
+            eigengene_matrix = np.zeros((len(clusters_names), data_in.shape[1]))
+            gene_not_existed = []
+            for i in range(len(clusters_names)):
+                gene = clusters_names[i]
+                ne = [g for g in gene if g not in data_in.index]
+                if len(ne) > 0:
+                    print('Warning: %d genes not existed in cluster %d.' % (len(ne), i) )
+                gene_not_existed.append(ne)
+                gene_overlapped = [g for g in gene if g in data_in.index]
+                X = data_in.loc[gene_overlapped, ]
+                mu = np.nanmean(X, axis = 1) # rowMeans
+                stddev = np.nanstd(X, axis = 1, ddof= 1) # ddof=1 provides unbiased estimation (1/(n-1))
+                XNorm = (X.T-mu).T
+                XNorm = (XNorm.T/stddev).T
+                u, s, vh = np.linalg.svd(XNorm, full_matrices = False)
+                eigengene_matrix[i, ] = vh[0,:]
+            eigengene_matrix = pd.DataFrame(eigengene_matrix, columns = data_in.columns)
+            return eigengene_matrix, gene_not_existed
+    
     
     
     
