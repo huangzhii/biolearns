@@ -17,6 +17,7 @@
 # out of the use of this software, even if advised of the possibility of
 # such damage.
 #
+from typing import Callable, Iterator, List, Optional, Tuple, Union, Any, Iterable
 import numpy as np
 import scipy.sparse as sp
 import pandas as pd
@@ -27,7 +28,9 @@ from sklearn.utils.extmath import safe_sparse_dot
 import copy
 
 from lifelines.utils import concordance_index
-from ..survival import StepCoxPHFitter
+# from ..survival import StepCoxPHFitter
+from ..survival import newton_rhapson_for_efron_model
+from ..survival import CoxPHFitter
 import time
 import warnings
 import logging
@@ -269,7 +272,25 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
         return W, Ht.T, n_iter
         
 
-def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penalizer=0, l1_ratio = 0, ci_tol=0.02, solver='mu', update_rule='projection', cph_max_steps=1, max_iter=1000, tol=1e-6, random_state=None, update_H=True, update_beta=True, H_row_normalization=False, logger=None, verbose=0):
+def CoxNMF(X: np.ndarray,
+           t: np.ndarray,
+           e: np.ndarray,
+           n_components,
+           alpha: Optional[float] = 1e-5,
+           sigma: Optional[float] = 0,
+           penalizer: Optional[float] = 0,
+           l1_ratio: Optional[float] = 0,
+           ci_tol: Optional[float] = 0.02,
+           max_iter: Optional[int] = 1000,
+           solver: Optional[str] = 'mu',
+           update_rule: Optional[str] = 'projection',
+           tol: Optional[float] = 1e-6,
+           random_state: Optional[int] = None,
+           update_H: bool = True,
+           update_beta: bool = True,
+           H_row_normalization: bool = False,
+           logger=None,
+           verbose: Optional[int] = 0):
     '''
     Parameters
     ----------
@@ -294,11 +315,11 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
     sigma : scalar value.
             orthogonal constraint on W.
             
-    eta_b : scalar value.
-            step size in Cox model.
             
     ci_tol: Tolerace of decrease of oncordance index to stop iteration.
     '''
+    
+    
     W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
         
     # used for the convergence criterion
@@ -310,6 +331,9 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
     t_geq_matrix = np.array([[int(y >= x) for i,x in enumerate(t)] for j,y in enumerate(t)])
     error_list = []
     cindex_list = []
+    max_cindex_res = None
+    beta = None
+    
     for n_iter in range(1, max_iter + 1):
         # update W
         # HHt and XHt are saved and reused if not update_H
@@ -319,26 +343,22 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             delta_W, HHt, XHt = _multiplicative_update_w_orth(X, W, H, HHt, XHt, sigma = sigma)
             
         W *= delta_W
-#        if H_row_normalization:
+#        if W_row_normalization:
 #            W = (W.T / np.linalg.norm(W, axis=1).T).T
-        
-        beta, cph = None, None
+    
         if update_beta:
-            H_cox = pd.DataFrame(H.T)
-            H_cox['time'] = t
-            H_cox['event'] = e
-            if cph_penalizer > 0:
-                cph = StepCoxPHFitter(penalizer = cph_penalizer, l1_ratio = l1_ratio)
-            else:
-                cph = StepCoxPHFitter()
-            cph.max_iterations = cph_max_steps
-            if not beta:
-                initial_point = None
-            else:
-                initial_point = beta.reshape(-1)
-            cph.fit(H_cox, initial_point = initial_point, duration_col='time', event_col='event', step_size = eta_b, show_progress=False)
-            cindex = concordance_index(H_cox['time'], -cph.predict_partial_hazard(H.T), H_cox['event'])
-            beta = cph.params_.values.reshape(-1,1)
+            
+            beta, ll_, hessian = newton_rhapson_for_efron_model(X=H.T,
+                                                                T=t,
+                                                                E=e,
+                                                                initial_point=beta,
+                                                                penalizer=penalizer,
+                                                                l1_ratio=l1_ratio,
+                                                                max_steps=1)
+            # normalize beta
+            beta = beta / (np.max(beta)-np.min(beta))
+            cindex = concordance_index(t, -np.dot(H.T, beta), e)
+            
         # update H
         if update_H:
             n_patients = t.shape[0]
@@ -346,17 +366,26 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
             denominator = np.dot(np.dot(W.T, W), H)
             H_mu = H*(numerator/denominator)
             
-            cox_numerator = np.repeat(np.expand_dims(np.matmul(beta, np.exp(np.matmul(beta.T, H)) ), axis = 2), n_patients, axis = 2).swapaxes(1,2) * t_geq_matrix.T
-            cox_numerator[:, np.where(e==0)[0], :] = 0
-            cox_denominator = np.expand_dims(np.matmul(np.exp(np.matmul(beta.T, H)), t_geq_matrix), axis = 2)
-            cox_fraction = e * np.repeat(beta, n_patients, axis = 1) - np.sum(cox_numerator / cox_denominator, axis = 1)
-
-            H_partial = alpha / 2 * (numerator/denominator) * cox_fraction
+            if beta is not None:
+                cox_numerator = np.repeat(np.expand_dims(np.matmul(beta, np.exp(np.matmul(beta.T, H)) ), axis = 2), n_patients, axis = 2).swapaxes(1,2) * t_geq_matrix.T
+                cox_numerator[:, np.where(e==0)[0], :] = 0
+                cox_denominator = np.expand_dims(np.matmul(np.exp(np.matmul(beta.T, H)), t_geq_matrix), axis = 2)
+                cox_fraction = e * np.repeat(beta, n_patients, axis = 1) - np.sum(cox_numerator / cox_denominator, axis = 1)
+    
+                H_partial = alpha / 2 * (numerator/denominator) * cox_fraction
+                
+                
+                if update_rule == 'projection':
+                    H_partial[H_partial < 0] = 0
+                
+                H = H_mu + H_partial
+            else:
+                H = H_mu
             
-            if update_rule == 'projection':
-                H_partial[H_partial < 0] = 0
+            if np.sum(np.isnan(H)) > 0:
+                print('Detected NaN value in CoxNMF @H. Possibly due to overflow large value in exp(beta*H). Algorithm stopped. H row normalization is suggested.')
+                break
             
-            H = H_mu + H_partial
             if H_row_normalization:
                 H = (H.T / np.linalg.norm(H, axis=1)).T
             
@@ -374,18 +403,21 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         
         # test convergence criterion every 10 iterations
 #        if tol > 0 and n_iter % 10 == 0:
-        if (previous_error - error) / error_at_init < tol:
-            break
-        previous_error = error
-        if (cindex - max_cindex) < -ci_tol: # if new concordance index smaller than previous 0.02
-            break
+        if n_iter % 10 == 0:
+            if (previous_error - error) / error_at_init < tol:
+                print('Detected non-decreasing NMF error. Algorithm stopped.')
+                break
+            previous_error = error
+            
+            if (cindex - max_cindex) < - ci_tol: # if new concordance index smaller than previous 0.02
+                print('Detected non-increasing C-Index. Algorithm stopped.')
+                break
         
         if cindex >= max_cindex:
             max_cindex = cindex
             max_cindex_res = {}
             max_cindex_res['W'] = W
             max_cindex_res['H'] = H
-            max_cindex_res['cph'] = copy.deepcopy(cph)
             max_cindex_res['error'] = error
             max_cindex_res['cindex'] = cindex
             
@@ -395,7 +427,7 @@ def CoxNMF(X, t, e, n_components, alpha=1e-5, sigma = 0, eta_b = None, cph_penal
         end_time = time.time()
         print("Epoch %04d reached after %.3f seconds." %
               (n_iter, end_time - start_time))
-    return W, H, cph, n_iter, error_list, cindex_list, max_cindex_res
+    return W, H, n_iter, error_list, cindex_list, max_cindex_res
 
 
 

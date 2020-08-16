@@ -28,73 +28,92 @@
 # such damage.
 #
 
-'''
-Parameters
-----------
-    
-data_in        : real-valued expression matrix with rownames indicating
-                 gene ID or gene symbol.
-gamma          : gamma value (default = 0.55)
-t              : t value (default = 1)
-lambda         : lambda value (default = 1)
-beta           : beta value (default = 0.4)
-minClusterSize : minimum length of cluster to retain (default = 10)
-CCmethod       : Methods for correlation coefficient calculation (default =
-                 "pearson"). Users can also pick "spearman".
-normalization  : Determine if normalization is needed on massive correlation
-                 coefficient matrix.
-Returns
--------
-None
-Notes
------
-References
-----------
-.. [1] Zhang J, Huang K. Normalized lmqcm: An algorithm for detecting weak quasi-cliques
-       in weighted graph with applications in gene co-expression module discovery in
-       cancers. Cancer informatics. 2014 Jan;13:CIN-S14021.
-.. [2] Huang Z, Han Z, Wang T, Shao W, Xiang S, Salama P, Rizkalla M, Huang K, Zhang J.
-       TSUNAMI: Translational Bioinformatics Tool Suite For Network Analysis And Mining.
-       bioRxiv. 2019 Jan 1:787507.
-Examples
--------
->>> tcga_COAD_data = 'http://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/COAD/20160128/gdac.broadinstitute.org_COAD.Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.Level_3.2016012800.0.0.tar.gz'
->>> data_in = pd.read_csv(tcga_COAD_data, header=0, skiprows=range(1, 2), index_col=0, sep='\t')
->>> lobject = lmQCM(data_in)
->>> lobject.fit()
->>> lobject.clusters
->>> lobject.clusters_names
->>> lobject.eigengene_matrix
-'''
 
+from typing import Tuple, List, Optional
+import warnings
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from scipy.stats import spearmanr
 
-
 class lmQCM():
-    def __init__(self, data_in = None, gamma = 0.55, t = 1, lambdaa = 1, beta = 0.4, 
-                     minClusterSize = 10, CCmethod = "pearson", normalization = False):
+    '''
+    Parameters
+    ----------
         
+    data_in        : real-valued expression matrix with rownames indicating
+                     gene ID or gene symbol.
+    gamma          : gamma value (default = 0.55)
+    t              : t value (default = 1)
+    lambda         : lambda value (default = 1)
+    beta           : beta value (default = 0.4)
+    minClusterSize : minimum length of cluster to retain (default = 10)
+    CCmethod       : Methods for correlation coefficient calculation (default =
+                     "pearson"). Users can also pick "spearman".
+    normalization  : Determine if normalization is needed on massive correlation
+                     coefficient matrix.
+    Returns
+    -------
+    None
+    Notes
+    -----
+    References
+    ----------
+    .. [1] Zhang J, Huang K. Normalized lmqcm: An algorithm for detecting weak quasi-cliques
+           in weighted graph with applications in gene co-expression module discovery in
+           cancers. Cancer informatics. 2014 Jan;13:CIN-S14021.
+    .. [2] Huang Z, Han Z, Wang T, Shao W, Xiang S, Salama P, Rizkalla M, Huang K, Zhang J.
+           TSUNAMI: Translational Bioinformatics Tool Suite For Network Analysis And Mining.
+           bioRxiv. 2019 Jan 1:787507.
+    Examples
+    -------
+    >>> tcga_COAD_data = 'http://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/COAD/20160128/gdac.broadinstitute.org_COAD.Merge_rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes_normalized__data.Level_3.2016012800.0.0.tar.gz'
+    >>> data_in = pd.read_csv(tcga_COAD_data, header=0, skiprows=range(1, 2), index_col=0, sep='\t')
+    >>> lobject = lmQCM(data_in)
+    >>> lobject.fit()
+    >>> lobject.clusters
+    >>> lobject.clusters_names
+    >>> lobject.eigengene_matrix
+    '''
+    def __init__(self,
+                 data_in: pd.DataFrame,
+                 gamma: Optional[float] = 0.55,
+                 t: Optional[float] = 1,
+                 lambdaa: Optional[float] = 1,
+                 beta: Optional[float] = 0.4,
+                 minClusterSize: Optional[int] = 10,
+                 CCmethod: Optional[str] = "pearson",
+                 normalization: Optional[bool] = False,
+                 **kwargs
+                 ) -> None:
+        
+        super(lmQCM, self).__init__(**kwargs)
         self.data_in = data_in
-        if 'DataFrame' not in str(type(self.data_in)):
-            print('Input matrix is numpy matrix. Convert it to pandas.core.frame.DataFrame...')
+        if not isinstance(self.data_in, pd.DataFrame):
+            print('Input matrix is not pandas DataFrame. Convert it to pandas.core.frame.DataFrame...')
             self.data_in = pd.DataFrame(self.data_in)
         if np.sum(np.isnan(self.data_in.values)) > 0:
-            print('Warning: %d NaN value detected. Replacing them to zero...' % np.sum(np.isnan(self.data_in.values)))
+             warnings.warn('%d NaN value detected. Replacing them to zero...' % np.sum(np.isnan(self.data_in.values)))
             self.data_in.fillna(0, inplace = True)
         self.gamma = gamma
         self.t = t
         self.lambdaa = lambdaa
         self.beta = beta
         self.minClusterSize = minClusterSize
-        self.CCmethod = CCmethod
+        self.CCmethod = CCmethod.lower()
         self.normalization = normalization
-        self.calculate_correlation_matrix()
+        self._calculate_correlation_matrix()
         print('Initialization Done.')
     
-    def localMaximumQCM(self):
+    def _localMaximumQCM(self
+                         ) -> List[List]:
+        '''
+        fit the lmQCM model.
+        
+        Returns
+        -------
+        C : list of lists
+        '''
         C = []
         nRow = self.corr_mat.shape[0]
         maxV = np.max(self.corr_mat, axis = 0)
@@ -143,7 +162,20 @@ class lmQCM():
         pbar.close()
         return(C)
         
-    def merging_lmQCM(self, C):
+    def _merging_lmQCM(self,
+                       C: List[List]
+                       ) -> List[List]:
+        '''
+        fit the lmQCM model.
+                
+        Parameters
+        ----------
+        C             : list of lists.
+        
+        Returns
+        ----------
+        mergedCluster : list of lists
+        '''
         sizeC = [len(i) for i in C]
         sortInd = np.argsort(sizeC, kind='mergesort')[::-1]
         mergedCluster = [C[i] for i in sortInd if len(C[i]) >= self.minClusterSize]
@@ -172,13 +204,14 @@ class lmQCM():
         print(" %d Modules remain after merging." % len(mergedCluster))
         return mergedCluster
         
-    def calculate_correlation_matrix(self):
+    def _calculate_correlation_matrix(self
+                                     ) -> None:
         print("Calculating massive correlation coefficient ...")
         if self.CCmethod.lower() == "pearson": self.corr_mat = np.corrcoef(self.data_in.values)
         if self.CCmethod.lower() == "spearman": self.corr_mat = spearmanr(self.data_in.values.T).correlation
         np.fill_diagonal(self.corr_mat, 0)
         if np.sum(np.isnan(self.corr_mat)) > 0:
-            print('Warning: %d NaN value detected in correlation matrix. Replacing them to zero...' % np.sum(np.isnan(self.corr_mat)))
+            warnings.warn('%d NaN value detected in correlation matrix. Replacing them to zero...' % np.sum(np.isnan(self.corr_mat)))
             self.corr_mat[np.isnan(self.corr_mat)] = 0
         if self.normalization:
             self.corr_mat = np.abs(self.corr_mat)
@@ -186,9 +219,19 @@ class lmQCM():
             D_half = 1.0/np.sqrt(D)
             self.corr_mat = np.multiply(np.multiply(self.corr_mat, D_half).T, D_half)
         
-    def fit(self):
-        C = self.localMaximumQCM()
-        clusters = self.merging_lmQCM(C)
+    def fit(self
+            ) -> Tuple[List[List], List, pd.DataFrame]:
+        '''
+        fit the lmQCM model.
+        
+        Returns
+        -------
+        clusters : list of lists
+        clusters_names : list
+        eigengene_matrix: DataFrame
+        '''
+        C = self._localMaximumQCM()
+        clusters = self._merging_lmQCM(C)
         
         clusters_names = []
         for i in range(len(clusters)):
@@ -210,18 +253,23 @@ class lmQCM():
         self.eigengene_matrix = eigengene_matrix
         return self.clusters, self.clusters_names, self.eigengene_matrix
     
-    def predict(self, data_in):
+    def predict(self,
+                data_in: pd.DataFrame
+                ) -> Tuple[pd.DataFrame, List[List]]:
         '''
-        data_in : a P * N DataFrame with P index (genes) and N samples
+        data_in : a P * N DataFrame with P index (genes) and N samples.
+        
+        Returns
+        -------
+        eigengene_matrix : DataFrame
+        gene_not_existed : list of lists
         '''
         if not isinstance(data_in, pd.DataFrame):
-            print('Error: Input data is not pandas DataFrame.')
-            return
+            raise ValueError("Input data is not pandas DataFrame.")
         try:
             clusters_names = self.clusters_names
         except AttributeError:
-            print('No fitted result found. Please try to fit a data.')
-            return
+            raise AttributeError("No fitted result found. Please try to fit a data.")
         else:
             eigengene_matrix = np.zeros((len(clusters_names), data_in.shape[1]))
             gene_not_existed = []
@@ -229,7 +277,7 @@ class lmQCM():
                 gene = clusters_names[i]
                 ne = [g for g in gene if g not in data_in.index]
                 if len(ne) > 0:
-                    print('Warning: %d genes not existed in cluster %d.' % (len(ne), i) )
+                    warnings.warn('%d genes not existed in cluster %d.' % (len(ne), i) )
                 gene_not_existed.append(ne)
                 gene_overlapped = [g for g in gene if g in data_in.index]
                 X = data_in.loc[gene_overlapped, ]
