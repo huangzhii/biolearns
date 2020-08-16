@@ -1,6 +1,5 @@
 README.md
 setup.py
-biolearns/__init__.py
 biolearns.egg-info/PKG-INFO
 biolearns.egg-info/SOURCES.txt
 biolearns.egg-info/dependency_links.txt
@@ -16,5 +15,4 @@ biolearns/metrics/discriminant.py
 biolearns/preprocessing/__init__.py
 biolearns/preprocessing/_filter.py
 biolearns/survival/__init__.py
-biolearns/survival/_coxmodel.py
 biolearns/survival/_logranktest.py
