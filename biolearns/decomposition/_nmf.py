@@ -30,7 +30,6 @@ import copy
 from lifelines.utils import concordance_index
 # from ..survival import StepCoxPHFitter
 from ..survival import newton_rhapson_for_efron_model
-from ..survival import CoxPHFitter
 import time
 import warnings
 import logging

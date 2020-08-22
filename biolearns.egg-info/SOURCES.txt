@@ -1,5 +1,6 @@
 README.md
 setup.py
+biolearns/__init__.py
 biolearns.egg-info/PKG-INFO
 biolearns.egg-info/SOURCES.txt
 biolearns.egg-info/dependency_links.txt
@@ -16,3 +17,4 @@ biolearns/preprocessing/__init__.py
 biolearns/preprocessing/_filter.py
 biolearns/survival/__init__.py
 biolearns/survival/_logranktest.py
+biolearns/survival/_newton_rhapson_for_efron_model.py

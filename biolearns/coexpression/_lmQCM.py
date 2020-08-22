@@ -93,7 +93,7 @@ class lmQCM():
             print('Input matrix is not pandas DataFrame. Convert it to pandas.core.frame.DataFrame...')
             self.data_in = pd.DataFrame(self.data_in)
         if np.sum(np.isnan(self.data_in.values)) > 0:
-             warnings.warn('%d NaN value detected. Replacing them to zero...' % np.sum(np.isnan(self.data_in.values)))
+            warnings.warn('%d NaN value detected. Replacing them to zero...' % np.sum(np.isnan(self.data_in.values)))
             self.data_in.fillna(0, inplace = True)
         self.gamma = gamma
         self.t = t
