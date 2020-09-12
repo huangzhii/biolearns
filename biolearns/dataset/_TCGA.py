@@ -96,7 +96,7 @@ class TCGA():
         if download:
 #            self.tmpdir = tempfile.TemporaryDirectory()
             self.mRNAseq = self.get_mRNAseq()
-            self.miRSeq = None
+            self.miRNAseq = self.get_miRNAseq()
             self.mRNA = None
             self.RPPA = None
             self.methylation = None
@@ -133,6 +133,41 @@ class TCGA():
         print('Done.')
 #        os.remove(file_downloaded)
         return self.mRNAseq
+    
+    
+    def get_miRNAseq(self):
+        print('Retrieve miRNAseq from http://firebrowse.org/ ...')
+        print('Cohort: %s (%s)' % (self.cohortdict[self.cohort], self.cohort))
+        print('File type: illuminahiseq_mirnaseq-miR_gene_expression')
+        
+        link = 'https://gdac.broadinstitute.org/runs/stddata__2016_01_28/data/' + self.cohort + \
+                '/20160128/gdac.broadinstitute.org_' + self.cohort + \
+                '.Merge_mirnaseq__illuminahiseq_mirnaseq__bcgsc_ca__Level_3__miR_gene_expression__data.Level_3.2016012800.0.0.tar.gz'
+
+        if self.cohort in ['LAML']:
+            print('No miRNAseq data: illuminahiseq data not found. %s only has illuminaga data!' % self.cohort)
+            return
+            
+        file_downloaded = '/tmp/' + self.cohort + '.miRNAseq.tar.gz'
+        
+        if not os.path.exists(file_downloaded):
+            self._download_file(link, file_downloaded)
+        
+        if self.cohort in ['BLCA','CHOL','ESCA','HNSC','KIRP','LUAD','LUSC','OV','PAAD','READ','SKCM','STES','THCA','THYM','UVM']:
+            skiprows = 1
+        elif self.cohort in ['GBMLGG']:
+            skiprows = 0
+        else:
+            skiprows = None
+        self.miRNAseq = pd.read_csv(file_downloaded, header=None, skiprows=skiprows, index_col=0, sep='\t', low_memory=False)
+        self.miRNAseq = self.miRNAseq.loc[:,self.miRNAseq.loc['miRNA_ID',:] == 'read_count']
+        self.miRNAseq.columns = self.miRNAseq.iloc[0,:]
+        self.miRNAseq = self.miRNAseq.iloc[2:] # drop first two rows
+        self.miRNAseq = self.miRNAseq.loc[self.miRNAseq.index.notnull(),:] # drop NaN indexed rows
+        self.miRNAseq = self.miRNAseq.astype(float)
+        print('Done.')
+#        os.remove(file_downloaded)
+        return self.miRNAseq
         
     def get_clinical(self):
         print('Retrieve clinical from http://firebrowse.org/ ...')
