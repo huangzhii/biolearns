@@ -53,7 +53,10 @@ Examples
 '''
 
 class TCGA():
-    def __init__(self, cohort = 'ACC', download = True):
+    def __init__(self,
+                 cohort = 'ACC',
+                 download = True,
+                 location = '/tmp'):
         self.cohort = cohort.upper()
         self.cohortdict = { 'ACC':'Adrenocortical carcinoma',
                             'BLCA':'Bladder urothelial carcinoma',
@@ -93,6 +96,7 @@ class TCGA():
                             'UCEC':'Uterine Corpus Endometrial Carcinoma',
                             'UCS':'Uterine Carcinosarcoma',
                             'UVM':'Uveal Melanoma'}
+        self.location = location
         if download:
 #            self.tmpdir = tempfile.TemporaryDirectory()
             self.mRNAseq = self.get_mRNAseq()
@@ -116,7 +120,7 @@ class TCGA():
             print('No mRNAseq data.')
             return
             
-        file_downloaded = '/tmp/' + self.cohort + '.mRNAseq.tar.gz'
+        file_downloaded = os.path.join(self.location, self.cohort + '.mRNAseq.tar.gz')
         
         if not os.path.exists(file_downloaded):
             self._download_file(link, file_downloaded)
@@ -148,7 +152,7 @@ class TCGA():
             print('No miRNAseq data: illuminahiseq data not found. %s only has illuminaga data!' % self.cohort)
             return
             
-        file_downloaded = '/tmp/' + self.cohort + '.miRNAseq.tar.gz'
+        file_downloaded = os.path.join(self.location, self.cohort + '.miRNAseq.tar.gz')
         
         if not os.path.exists(file_downloaded):
             self._download_file(link, file_downloaded)
