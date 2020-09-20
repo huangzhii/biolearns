@@ -182,7 +182,7 @@ class TCGA():
                 self.cohort + '/20160128/gdac.broadinstitute.org_' + self.cohort + \
                 '.Clinical_Pick_Tier1.Level_4.2016012800.0.0.tar.gz'
 
-        file_downloaded = '/tmp/' + self.cohort + '.clinical.tar.gz'
+        file_downloaded = os.path.join(self.location, self.cohort + '.clinical.tar.gz')
         if not os.path.exists(file_downloaded):
             self._download_file(link, file_downloaded)
         with tarfile.open(file_downloaded) as f:
