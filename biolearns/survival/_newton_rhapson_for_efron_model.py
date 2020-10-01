@@ -168,8 +168,6 @@ def _get_efron_values_single(
 
 
 
-
-
 def newton_rhapson_for_efron_model(
     X: np.ndarray,
     T: np.ndarray,
@@ -186,11 +184,9 @@ def newton_rhapson_for_efron_model(
 ):  # pylint: disable=too-many-statements,too-many-branches
     """
     Newton Rhaphson algorithm for fitting CPH model.
-
     Note
     ----
     The data is assumed to be sorted on T!
-
     Parameters
     ----------
     X: (n,d) Pandas DataFrame of observations.
@@ -209,7 +205,6 @@ def newton_rhapson_for_efron_model(
              diagnostics.
     max_steps: int, optional
         the maximum number of iterations of the Newton-Rhaphson algorithm.
-
     Returns
     -------
     beta: (1,d) numpy array.
@@ -264,15 +259,19 @@ def newton_rhapson_for_efron_model(
 
     delta = np.zeros_like(beta)
     converging = True
+    success = False
+    beta_curr, hessian = delta, None
     ll_, previous_ll_ = 0.0, 0.0
     start = time.time()
     i = 0
-
     while converging:
         beta += step_size * delta
 
         i += 1
         h, g, ll_ = _get_efron_values_single(X, T, E, weights, entries, beta)
+        
+        if np.sum(np.isnan(h)) > 0:
+            raise ValueError('NaN detected in Hessian or gradient. Possibly large value in X or in beta. Program stopped.')
         
         if penalizer:
             ll_ -= elastic_net_penalty(beta, 1e10)
@@ -345,4 +344,3 @@ def newton_rhapson_for_efron_model(
         )
 
     return beta_curr, ll_, hessian
-

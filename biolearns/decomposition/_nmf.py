@@ -30,7 +30,6 @@ from math import sqrt
 from sklearn.utils.extmath import randomized_svd, safe_sparse_dot, squared_norm
 from sklearn.utils.validation import check_non_negative
 from lifelines.utils import concordance_index
-# from ..survival import StepCoxPHFitter
 from ..survival import newton_rhapson_for_efron_model
 import time
 import warnings
@@ -414,7 +413,9 @@ def NMF(X, n_components, solver = 'cd', max_iter=1000, tol=1e-6, update_H = True
 def CoxNMF(X: np.ndarray,
            t: np.ndarray,
            e: np.ndarray,
-           n_components,
+           W_init = None,
+           H_init = None,
+           n_components: Optional[int] = 10,
            alpha: Optional[float] = 1e-5,
            sigma: Optional[float] = 0,
            penalizer: Optional[float] = 0,
@@ -427,7 +428,9 @@ def CoxNMF(X: np.ndarray,
            random_state: Optional[int] = None,
            update_H: bool = True,
            update_beta: bool = True,
-           H_row_normalization: bool = False,
+           W_normalization: bool = False,
+           H_normalization: bool = False,
+           beta_normalization: bool = True,
            logger=None,
            verbose: Optional[int] = 0):
     '''
@@ -435,10 +438,8 @@ def CoxNMF(X: np.ndarray,
     ----------
     X     : array-like, shape (n_samples, n_features)
             Constant input matrix.
-
     W     : array-like, shape (n_samples, n_components)
             Initial guess for the solution.
-
     H     : array-like, shape (n_components, n_features)
             Initial guess for the solution.
         
@@ -451,15 +452,13 @@ def CoxNMF(X: np.ndarray,
     alpha : scalar value.
             parameter used for learning the H guided by Cox model.
             
-    sigma : scalar value.
-            orthogonal constraint on W.
-            
-            
     ci_tol: Tolerace of decrease of oncordance index to stop iteration.
     '''
     
-    
-    W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
+    if W_init is None or H_init is None:
+        W, H = _initialize_nmf(X, n_components, init = 'random', random_state=random_state)
+    else:
+        W, H = W_init, H_init
         
     # used for the convergence criterion
     error_at_init = calcuate_Frobenius_norm(X, W, H, square_root=True)
@@ -482,8 +481,9 @@ def CoxNMF(X: np.ndarray,
             delta_W, HHt, XHt = _multiplicative_update_w_orth(X, W, H, HHt, XHt, sigma = sigma)
             
         W *= delta_W
-#        if W_row_normalization:
-#            W = (W.T / np.linalg.norm(W, axis=1).T).T
+        if W_normalization:
+            # column normalization on W
+            W = (W / np.linalg.norm(W, axis=0).T)
     
         if update_beta:
             
@@ -495,7 +495,8 @@ def CoxNMF(X: np.ndarray,
                                                                 l1_ratio=l1_ratio,
                                                                 max_steps=1)
             # normalize beta
-            beta = beta / (np.max(beta)-np.min(beta))
+            if beta_normalization:
+                beta = beta / (np.max(beta)-np.min(beta))
             cindex = concordance_index(t, -np.dot(H.T, beta), e)
             
         # update H
@@ -525,17 +526,19 @@ def CoxNMF(X: np.ndarray,
                 print('Detected NaN value in CoxNMF @H. Possibly due to overflow large value in exp(beta*H). Algorithm stopped. H row normalization is suggested.')
                 break
             
-            if H_row_normalization:
+            if H_normalization:
+                # row normalization on H
                 H = (H.T / np.linalg.norm(H, axis=1)).T
             
             # These values will be recomputed since H changed
             HHt, XHt = None, None
     
         error = calcuate_Frobenius_norm(X, W, H, square_root=True)
+        relative_error = error/np.linalg.norm(X,'fro')
         if verbose:
-            print("Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
+            print("Epoch %04d error: %f, relative_error: %f, concordance index: %f" % (n_iter, error, relative_error, cindex))
         if logger:
-            logger.log(logging.INFO, "Epoch %04d error: %f, concordance index: %f" % (n_iter, error, cindex))
+            logger.log(logging.INFO, "Epoch %04d error: %f, relative_error: %f, concordance index: %f" % (n_iter, error, relative_error, cindex))
         
         error_list.append(error)
         cindex_list.append(cindex)
@@ -559,6 +562,7 @@ def CoxNMF(X: np.ndarray,
             max_cindex_res['H'] = H
             max_cindex_res['error'] = error
             max_cindex_res['cindex'] = cindex
+            max_cindex_res['beta'] = beta.reshape(-1)
             
         
     # do not print if we have already printed in the convergence test
