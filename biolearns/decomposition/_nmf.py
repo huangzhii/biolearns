@@ -22,11 +22,11 @@ import numpy as np
 import scipy.sparse as sp
 import pandas as pd
 from sklearn.utils import check_random_state, check_array
-from sklearn.decomposition.nmf import _initialize_nmf
-from sklearn.decomposition.cdnmf_fast import _update_cdnmf_fast
+from sklearn.decomposition._cdnmf_fast import _update_cdnmf_fast
 from sklearn.utils.extmath import safe_sparse_dot
 import copy
 
+from math import sqrt
 from sklearn.utils.extmath import randomized_svd, safe_sparse_dot, squared_norm
 from sklearn.utils.validation import check_non_negative
 from lifelines.utils import concordance_index
