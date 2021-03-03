@@ -121,16 +121,18 @@ class lmQCM():
         lm_ind = np.where(maxV == np.max(self.corr_mat[maxInd,], axis = 1))[0]
         maxEdges = np.stack((maxInd[lm_ind], lm_ind)).T
         maxW = maxV[lm_ind]
-        sortMaxV = np.sort(maxW, kind='mergesort')[::-1] # decreasing
-        sortMaxInd = np.argsort(maxW, kind='mergesort')[::-1]
+        # sortMaxV = np.sort(maxW, kind='mergesort')[::-1] # decreasing
+        # sortMaxInd = np.argsort(maxW, kind='mergesort')[::-1]
+        sortMaxV = -np.sort(-maxW, kind='mergesort')
+        sortMaxInd = np.argsort(-maxW, kind='mergesort')
         sortMaxEdges = maxEdges[sortMaxInd, ]
         print("Number of Maximum Edges: %d" % len(sortMaxInd))
-        currentInit = 1
+        currentInit = 0 # In R, the index start at 1.
         noNewInit = 0
         
         pbar = tqdm(total=len(sortMaxInd))
         nodesInCluster = []
-        while currentInit <= len(sortMaxInd) and noNewInit == 0:
+        while (currentInit+1) <= len(sortMaxInd) and noNewInit == 0:
             pbar.update(1)
             if sortMaxV[currentInit] < (self.gamma * sortMaxV[1]):
                 noNewInit = 1
@@ -143,9 +145,9 @@ class lmQCM():
                     totalInd = np.arange(nRow)
                     remainInd = np.setdiff1d(totalInd, newCluster)
                     while addingMode == 1:
-                        neighborWeights = np.sum(self.corr_mat[newCluster,:][:,remainInd], axis = 0)
+                        neighborWeights = np.sum(self.corr_mat[newCluster,:][:,remainInd], axis = 0) #neighborWeights = np.round(neighborWeights, 6) this part is inconsistent with R
                         maxNeighborWeight = max(neighborWeights)
-                        maxNeighborInd = np.argmax(neighborWeights)
+                        maxNeighborInd = np.argmax(neighborWeights) # this part is inconsistent with R
                         c_v = maxNeighborWeight/nCp
                         alphaN = 1 - 1/(2 * self.lambdaa * (nCp + self.t))
                         if c_v >= alphaN * currentDensity:
@@ -176,12 +178,13 @@ class lmQCM():
         ----------
         mergedCluster : list of lists
         '''
+        print(" %d Modules before merging." % len(C))
         sizeC = [len(i) for i in C]
-        sortInd = np.argsort(sizeC, kind='mergesort')[::-1]
+        # sortInd = np.argsort(sizeC, kind='mergesort')[::-1]
+        sortInd = np.argsort(-np.array(sizeC), kind='mergesort')
         mergedCluster = [C[i] for i in sortInd if len(C[i]) >= self.minClusterSize]
         mergeOccur = 1
         currentInd = -1
-        print(" %d Modules before merging." % len(mergedCluster))
         while mergeOccur == 1:
             mergeOccur = 0
             while currentInd < len(mergedCluster):
@@ -198,23 +201,44 @@ class lmQCM():
                     mergedCluster = [mergedCluster[i] for i in keepInd]
                     
             sizeMergedCluster = [len(mergedCluster[i]) for i in range(len(mergedCluster))]
-            sortMergedInd = np.argsort(sizeMergedCluster, kind='mergesort')[::-1]
+            # sortMergedInd = np.argsort(sizeMergedCluster, kind='mergesort')[::-1]
+            sortMergedInd = np.argsort(-np.array(sizeMergedCluster), kind='mergesort')
             mergedCluster = [mergedCluster[i] for i in sortMergedInd]
-            currentInd = 0
+            currentInd = -1
         print(" %d Modules remain after merging." % len(mergedCluster))
         return mergedCluster
         
     def _calculate_correlation_matrix(self
                                      ) -> None:
         print("Calculating massive correlation coefficient ...")
-        if self.CCmethod.lower() == "pearson": self.corr_mat = np.corrcoef(self.data_in.values)
+        if self.CCmethod.lower() == "pearson":
+            self.corr_mat = np.corrcoef(self.data_in.values)
+            
+            # # Rpython
+            # import rpy2
+            # print(rpy2.__version__)
+            # import rpy2.robjects as ro
+            # import rpy2.robjects.numpy2ri as n2r
+            # n2r.activate()
+            # from rpy2.robjects.conversion import localconverter
+            # from rpy2.robjects import pandas2ri
+            
+            # r = ro.r
+            # r.assign("data_in", self.data_in.values)
+            # r('cMatrix <- cor(t(data_in))')
+            
+            # with localconverter(ro.default_converter + pandas2ri.converter):
+            #     self.corr_mat = r("cMatrix")
+                
+            # # self.corr_mat = np.round(self.corr_mat,2)
         if self.CCmethod.lower() == "spearman": self.corr_mat = spearmanr(self.data_in.values.T).correlation
         np.fill_diagonal(self.corr_mat, 0)
+        self.corr_mat = np.abs(self.corr_mat)
+        
         if np.sum(np.isnan(self.corr_mat)) > 0:
             warnings.warn('%d NaN value detected in correlation matrix. Replacing them to zero...' % np.sum(np.isnan(self.corr_mat)))
             self.corr_mat[np.isnan(self.corr_mat)] = 0
         if self.normalization:
-            self.corr_mat = np.abs(self.corr_mat)
             D = np.sum(self.corr_mat, axis = 0)
             D_half = 1.0/np.sqrt(D)
             self.corr_mat = np.multiply(np.multiply(self.corr_mat, D_half).T, D_half)
@@ -294,3 +318,4 @@ class lmQCM():
     
     
     
+
