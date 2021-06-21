@@ -22,9 +22,9 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="biolearns",
-    version="0.0.60",
+    version="0.0.61",
     author="Zhi Huang",
-    author_email="huang898@purdue.edu",
+    author_email="hz9423@gmail.com",
     description="BioLearns: Computational Biology and Bioinformatics Toolbox in Python",
     long_description=long_description,
     long_description_content_type="text/markdown",

@@ -84,6 +84,7 @@ class lmQCM():
                  minClusterSize: Optional[int] = 10,
                  CCmethod: Optional[str] = "pearson",
                  normalization: Optional[bool] = False,
+                 positive_corr: Optional[bool] = False,
                  **kwargs
                  ) -> None:
         
@@ -102,6 +103,7 @@ class lmQCM():
         self.minClusterSize = minClusterSize
         self.CCmethod = CCmethod.lower()
         self.normalization = normalization
+        self.positive_corr = positive_corr
         self._calculate_correlation_matrix()
         print('Initialization Done.')
     
@@ -233,7 +235,8 @@ class lmQCM():
             # # self.corr_mat = np.round(self.corr_mat,2)
         if self.CCmethod.lower() == "spearman": self.corr_mat = spearmanr(self.data_in.values.T).correlation
         np.fill_diagonal(self.corr_mat, 0)
-        self.corr_mat = np.abs(self.corr_mat)
+        if not self.positive_corr: # if use positive_corr, then ignore negative correlations.
+            self.corr_mat = np.abs(self.corr_mat)
         
         if np.sum(np.isnan(self.corr_mat)) > 0:
             warnings.warn('%d NaN value detected in correlation matrix. Replacing them to zero...' % np.sum(np.isnan(self.corr_mat)))
