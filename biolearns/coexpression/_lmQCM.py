@@ -231,11 +231,11 @@ class lmQCM():
             
             # with localconverter(ro.default_converter + pandas2ri.converter):
             #     self.corr_mat = r("cMatrix")
-                
             # # self.corr_mat = np.round(self.corr_mat,2)
+            
         if self.CCmethod.lower() == "spearman": self.corr_mat = spearmanr(self.data_in.values.T).correlation
         np.fill_diagonal(self.corr_mat, 0)
-        if not self.positive_corr: # if use positive_corr, then ignore negative correlations.
+        if self.positive_corr: # if use positive_corr, then ignore negative correlations.
             self.corr_mat = np.abs(self.corr_mat)
         
         if np.sum(np.isnan(self.corr_mat)) > 0:
@@ -273,7 +273,24 @@ class lmQCM():
             XNorm = (X.T-mu).T
             XNorm = (XNorm.T/stddev).T
             u, s, vh = np.linalg.svd(XNorm, full_matrices = False)
-            eigengene_matrix[i, ] = vh[0,:]
+            eigenvector_first = vh[0,:]
+            
+            '''
+            Compute the sign of the eigengene.
+            
+            1. Correlate the eigengene value with each of the gene's expression in that module across all samples used to generate the module.
+            2. If >50% of the correlations is negative, then assign a – sign to the eigengene.
+            3. If 50% or more correlation is positive, the eigengene remains positive.
+            4. Output the eigene value table with the sign carried (if it is negative).
+            '''
+            mat_ = np.concatenate([eigenvector_first.reshape(1,-1), X.values])
+            corr = np.corrcoef(mat_)[0,1:]
+            negative_ratio = np.sum(corr < 0)/len(corr)
+            if negative_ratio > 0.5:
+                eigenvector_first = -eigenvector_first
+            
+            eigengene_matrix[i, ] = eigenvector_first
+            
         eigengene_matrix = pd.DataFrame(eigengene_matrix, columns = self.data_in.columns)
         self.clusters = clusters
         self.clusters_names = clusters_names
@@ -313,11 +330,25 @@ class lmQCM():
                 XNorm = (X.T-mu).T
                 XNorm = (XNorm.T/stddev).T
                 u, s, vh = np.linalg.svd(XNorm, full_matrices = False)
-                eigengene_matrix[i, ] = vh[0,:]
+                eigenvector_first = vh[0,:]
+                
+                '''
+                Compute the sign of the eigengene.
+                
+                1. Correlate the eigengene value with each of the gene's expression in that module across all samples used to generate the module.
+                2. If >50% of the correlations is negative, then assign a – sign to the eigengene.
+                3. If 50% or more correlation is positive, the eigengene remains positive.
+                4. Output the eigene value table with the sign carried (if it is negative).
+                '''
+                mat_ = np.concatenate([eigenvector_first.reshape(1,-1), X.values])
+                corr = np.corrcoef(mat_)[0,1:]
+                negative_ratio = np.sum(corr < 0)/len(corr)
+                if negative_ratio > 0.5:
+                    eigenvector_first = -eigenvector_first
+                eigengene_matrix[i, ] = eigenvector_first
+                
             eigengene_matrix = pd.DataFrame(eigengene_matrix, columns = data_in.columns)
             return eigengene_matrix, gene_not_existed
-    
-    
     
     
     
